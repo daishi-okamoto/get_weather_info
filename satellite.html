@@ -9,17 +9,17 @@
 
     <title>Satellite Image Archive</title>
 
-    <link type="text/css" rel="stylesheet" media="all" href="css/satellite.css" />
+    <link type="text/css" rel="stylesheet" media="all" href="css/index.css" />
+
     <script type="text/javascript" src="js/jquery-3.5.1.min.js"></script>
-    <script type="text/javascript" src="js/satellite.js"></script>
+    <script type="text/javascript">
+        const IMAGE_TYPE = 1;   // 0:GPV, 1:Satellite
+    </script>
+    <script type="text/javascript" src="js/index.js"></script>
 </head>
 
 <body>
     <div id="Container">
-        <div class="Page">
-            <p><a href="./index.html">GPVアーカイブ</a></p>
-            <p><a href="./satellite.html">衛星画像アーカイブ</a></p>
-        </div>
         <div id="Area" class="Option">
             <h2>地域</h2>
             <div>
@@ -28,6 +28,7 @@
                 <label><input type="radio" name="area" value="japan-west" />西日本</label>
             </div>
         </div>
+
         <div id="Date" class="Option">
             <div id="Year">
                 <select name="year">
@@ -91,7 +92,7 @@
             <div id="AutoPlay">
                 <p><label><input type="checkbox" name="autoplay" value="" />自動再生</label></p>
                 <div id="Speed">
-                    <select name="speed" disabled="disabled">
+                    <select name="speed">
 						<option value="4000">0.5</option>
 						<option value="2000" selected="selected">1</option>
 						<option value="1000">2</option>
@@ -101,15 +102,21 @@
                     <p>倍速</p>
                 </div>
             </div>
-            <div id="Link">
-                <p><a class="External" href="https://tenki.jp/satellite/" target="_blank">気象衛星 - 日本気象協会 tenki.jp</a></p>
-            </div>
         </div>
+
         <div id="Image">
             <p id="NoImage">NO IMAGE</p>
-            <div id="SatelliteImage">
+            <div id="GpvImage">
                 <div></div>
             </div>
+        </div>
+
+        <div id="Link">
+            <ul>
+                <li><a href="./index.html">GPVアーカイブ</a></li>
+                <li>衛星画像アーカイブ</li>
+                <li><a class="External" href="https://tenki.jp/satellite/" target="_blank">気象衛星 - 日本気象協会 tenki.jp</a></li>
+            </ul>
         </div>
     </div>
 </body>

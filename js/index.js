@@ -1,351 +1,409 @@
 $(document).ready(function() {
-    'use strict';
+	'use strict';
 
-    const START_YEAR = 2021;
+	const START_YEAR = 2021;
 
-    const AUTO_PLAY_STATUS = {
-        STOP: 0,
-        PLAY: 1,
-        REVERSE: 2
-    };
+	const JOB_SCHEDULED_TIME_MIN = 40;
 
-    const ANIMATION_DURATION = 100;
-    const ANIMATION_DURATION_AUTO = 200;
+	const AUTO_PLAY_STATUS = {
+		STOP : 0,
+		PLAY : 1,
+		REVERSE : 2
+	};
 
-    const KEY_CODE_LEFT = 37;
-    const KEY_CODE_RIGHT = 39;
+	const ANIMATION_DURATION_MANUAL = 100;
+	const ANIMATION_DURATION_AUTO   = 200;
 
-    var autoPlayTimer;
-    var isPlaying = false;
-    var isNormalPlay = true;
-    var autoPlayStatus = AUTO_PLAY_STATUS.STOP;
+	const KEY_CODE_LEFT  = 37;
+	const KEY_CODE_RIGHT = 39;
 
-    //
-    // initialize
-    //
-    initYearOptions();
-    initDayOptions((new Date()).getFullYear(), (new Date()).getMonth() + 1);
-    initDateSelect();
-    resetGpvImage();
+	const ELEM_NAME_INPUT_AREA      = 'input[name=area]';
+	const ELEM_NAME_INPUT_TYPE      = 'input[name=type]';
+	const ELEM_NAME_SELECT_YEAR     = 'select[name=year]';
+	const ELEM_NAME_SELECT_MONTH    = 'select[name=month]';
+	const ELEM_NAME_SELECT_DAY      = 'select[name=day]';
+	const ELEM_NAME_SELECT_HOUR     = 'select[name=hour]';
+	const ELEM_NAME_INPUT_AUTO_PLAY = 'input[name=autoplay]';
+	const ELEM_NAME_SELECT_SPEED    = 'select[name=speed]';
+	const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
+	const ELEM_NAME_NEXT_BUTTON     = '#NextButton';
+	const ELEM_NAME_GPV_IMAGE       = '#GpvImage';
+	const CLASS_NAME_PLAY           = 'Play';
+	const CLASS_NAME_PAUSE          = 'Pause';
 
-    //
-    // events
-    //
-    $(this).keydown(function(event) {
-        switch (event.keyCode) {
-            case KEY_CODE_LEFT:
-                stopAutoPlay();
-                prevHour();
-                break;
-            case KEY_CODE_RIGHT:
-                stopAutoPlay();
-                nextHour();
-                break;
-            default:
-                break;
-        }
-    });
+	var autoPlayTimer = null;
+	var autoPlayStatus = AUTO_PLAY_STATUS.STOP;
 
-    $('input[name=area]').change(function() {
-        stopAutoPlay();
-        resetGpvImage();
-    });
+	//
+	// initialize
+	//
+	initYearOptions();
+	initDayOptions((new Date()).getFullYear(), (new Date()).getMonth() + 1);
+	initDateSelect();
+	resetGpvImage();
 
-    $('input[name=type]').change(function() {
-        stopAutoPlay();
-        resetGpvImage();
-    });
+	//
+	// events
+	//
+	$(this).keydown(function(event) {
+		switch (event.keyCode) {
+			case KEY_CODE_LEFT:
+				if (autoPlayStatus !== AUTO_PLAY_STATUS.STOP) {
+					stopAutoPlay();
+				}
+				prevHour();
+				break;
+			case KEY_CODE_RIGHT:
+				if (autoPlayStatus !== AUTO_PLAY_STATUS.STOP) {
+					stopAutoPlay();
+				}
+				nextHour();
+				break;
+			default:
+				break;
+		}
+	});
 
-    $('select[name=year]').change(function() {
-        stopAutoPlay();
-        resetGpvImage();
-    });
+	$(ELEM_NAME_INPUT_AREA).change(function() {
+		stopAutoPlay();
+		resetGpvImage();
+	});
 
-    $('select[name=month]').change(function() {
-        stopAutoPlay();
-        const year = $('select[name=year] > option:selected').val();
-        const month = $('select[name=month] > option:selected').val()
-        initDayOptions(year, month);
-        resetGpvImage();
-    });
+	$(ELEM_NAME_INPUT_TYPE).change(function() {
+		stopAutoPlay();
+		resetGpvImage();
+	});
 
-    $('select[name=day]').change(function() {
-        stopAutoPlay();
-        resetGpvImage();
-    });
+	$(ELEM_NAME_SELECT_YEAR).change(function() {
+		stopAutoPlay();
+		resetGpvImage();
+	});
 
-    $('select[name=hour]').change(function() {
-        stopAutoPlay();
-        resetGpvImage();
-    });
+	$(ELEM_NAME_SELECT_MONTH).change(function() {
+		stopAutoPlay();
+		const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
+		const month = $(ELEM_NAME_SELECT_MONTH + ' > option:selected').val()
+		initDayOptions(year, month);
+		resetGpvImage();
+	});
 
-    $('#PrevButton').click(function() {
-        if ($('input[name=autoplay]').prop('checked')) {
-            clearTimeout(autoPlayTimer);
-            switch (autoPlayStatus) {
-                case AUTO_PLAY_STATUS.STOP:
-                case AUTO_PLAY_STATUS.PLAY:
-                    autoPlayStatus = AUTO_PLAY_STATUS.REVERSE;
-                    isNormalPlay = false;
-                    autoPlay();
-                    $('#NextButton').removeClass('Pause');
-                    $('#NextButton').addClass('Play');
-                    $(this).removeClass('Play');
-                    $(this).addClass('Pause');
-                    break;
-                case AUTO_PLAY_STATUS.REVERSE:
-                    stopAutoPlay();
-                default:
-                    break;
-            }
-        } else {
-            prevHour();
-        }
-    });
+	$(ELEM_NAME_SELECT_DAY).change(function() {
+		stopAutoPlay();
+		resetGpvImage();
+	});
 
-    $('#NextButton').click(function() {
-        if ($('input[name=autoplay]').prop('checked')) {
-            clearTimeout(autoPlayTimer);
-            switch (autoPlayStatus) {
-                case AUTO_PLAY_STATUS.STOP:
-                case AUTO_PLAY_STATUS.REVERSE:
-                    autoPlayStatus = AUTO_PLAY_STATUS.PLAY;
-                    isNormalPlay = true;
-                    autoPlay();
-                    $('#PrevButton').removeClass('Pause');
-                    $('#PrevButton').addClass('Play');
-                    $(this).removeClass('Play');
-                    $(this).addClass('Pause');
-                    break;
-                case AUTO_PLAY_STATUS.PLAY:
-                    stopAutoPlay();
-                default:
-                    break;
-            }
-        } else {
-            nextHour();
-        }
-    });
+	$(ELEM_NAME_SELECT_HOUR).change(function() {
+		stopAutoPlay();
+		resetGpvImage();
+	});
 
-    $('input[name=autoplay]').change(function() {
-        $('select[name=speed]').attr('disabled', !$(this).prop('checked'));
-        stopAutoPlay();
-    });
+	$(ELEM_NAME_PREV_BUTTON).click(function() {
+		if ($(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked')) {
+			switch (autoPlayStatus) {
+				case AUTO_PLAY_STATUS.STOP:
+				case AUTO_PLAY_STATUS.PLAY:
+					startAutoPlay(AUTO_PLAY_STATUS.REVERSE);
+					break;
+				case AUTO_PLAY_STATUS.REVERSE:
+					stopAutoPlay();
+					break;
+				default:
+					console.assert(false, 'autoPlayStatus=' + autoPlayStatus);
+					break;
+			}
+		} else {
+			prevHour();
+		}
+	});
 
-    $('select[name=speed]').change(function() {
-        if ($('input[name=autoplay]').prop('checked')) {
-            switch (autoPlayStatus) {
-                case AUTO_PLAY_STATUS.PLAY:
-                case AUTO_PLAY_STATUS.REVERSE:
-                    clearTimeout(autoPlayTimer);
-                    autoPlay();
-                case AUTO_PLAY_STATUS.STOP:
-                default:
-                    break;
-            }
-        }
-    });
+	$(ELEM_NAME_NEXT_BUTTON).click(function() {
+		if ($(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked')) {
+			switch (autoPlayStatus) {
+				case AUTO_PLAY_STATUS.STOP:
+				case AUTO_PLAY_STATUS.REVERSE:
+					startAutoPlay(AUTO_PLAY_STATUS.PLAY);
+					break;
+				case AUTO_PLAY_STATUS.PLAY:
+					stopAutoPlay();
+					break;
+				default:
+					console.assert(false, 'autoPlayStatus=' + autoPlayStatus);
+					break;
+			}
+		} else {
+			nextHour();
+		}
+	});
 
-    //
-    // functions
-    //
-    function prevHour() {
-        var currentElement = $('select[name=hour] > option:selected');
-        var newElement = currentElement.prev('option');
-        if (newElement.length === 0) {
-            if (prevDay()) {
-                newElement = $('select[name=hour] > option').last();
-            } else {
-                return;
-            }
-        }
-        $('select[name=hour]').val(newElement.val());
-        resetGpvImage();
-    }
+	$(ELEM_NAME_INPUT_AUTO_PLAY).change(function() {
+		// $(ELEM_NAME_SELECT_SPEED).prop('disabled', !$(this).prop('checked'));
+		stopAutoPlay();
+	});
 
-    function nextHour() {
-        var currentElement = $('select[name=hour] > option:selected');
-        var newElement = currentElement.next('option');
-        if (newElement.length === 0) {
-            if (nextDay()) {
-                newElement = $('select[name=hour] > option').first();
-            } else {
-                return;
-            }
-        }
-        $('select[name=hour]').val(newElement.val());
-        resetGpvImage();
-    }
+	$(ELEM_NAME_SELECT_SPEED).change(function() {
+		console.log($(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked'));
+		if ($(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked')) {
+			switch (autoPlayStatus) {
+				case AUTO_PLAY_STATUS.PLAY:
+				case AUTO_PLAY_STATUS.REVERSE:
+					startAutoPlay(null);
+				case AUTO_PLAY_STATUS.STOP:
+					break;
+				default:
+					console.assert(false, 'autoPlayStatus=' + autoPlayStatus);
+					break;
+			}
+		} else {
+			$(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked', true);
+		}
+	});
 
-    function prevDay() {
-        var currentElement = $('select[name=day] > option:selected');
-        var newElement = currentElement.prev('option');
-        if (newElement.length === 0) {
-            if (prevMonth()) {
-                newElement = $('select[name=day] > option').last();
-            } else {
-                return false;
-            }
-        }
-        $('select[name=day]').val(newElement.val());
-        return true;
-    }
+	//
+	// functions
+	//
+	function prevHour() {
+		if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
+			return;
+		}
 
-    function nextDay() {
-        var currentElement = $('select[name=day] > option:selected');
-        var newElement = currentElement.next('option');
-        if (newElement.length === 0) {
-            if (nextMonth()) {
-                newElement = $('select[name=day] > option').first();
-            } else {
-                return false;
-            }
-        }
-        $('select[name=day]').val(newElement.val());
-        return true;
-    }
+		var currentElement = $(ELEM_NAME_SELECT_HOUR + ' > option:selected');
+		var newElement = currentElement.prev('option');
+		if (newElement.length === 0) {
+			if (prevDay()) {
+				newElement = $(ELEM_NAME_SELECT_HOUR + ' > option').last();
+			} else {
+				return;
+			}
+		}
+		$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
+		resetGpvImage();
+	}
 
-    function prevMonth() {
-        var currentElement = $('select[name=month] > option:selected');
-        var newElement = currentElement.prev('option');
-        if (newElement.length === 0) {
-            if (prevYear()) {
-                newElement = $('select[name=month] > option').last();
-            } else {
-                return false;
-            }
-        }
-        $('select[name=month]').val(newElement.val());
-        const year = $('select[name=year] > option:selected').val();
-        initDayOptions(year, newElement.val());
-        return true;
-    }
+	function nextHour() {
+		if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
+			return;
+		}
 
-    function nextMonth() {
-        var currentElement = $('select[name=month] > option:selected');
-        var newElement = currentElement.next('option');
-        if (newElement.length === 0) {
-            if (nextYear()) {
-                newElement = $('select[name=month] > option').first();
-            } else {
-                return false;
-            }
-        }
-        $('select[name=month]').val(newElement.val());
-        const year = $('select[name=year] > option:selected').val();
-        initDayOptions(year, newElement.val());
-        return true;
-    }
+		var currentElement = $(ELEM_NAME_SELECT_HOUR + ' > option:selected');
+		var newElement = currentElement.next('option');
+		if (newElement.length === 0) {
+			if (nextDay()) {
+				newElement = $(ELEM_NAME_SELECT_HOUR + ' > option').first();
+			} else {
+				return;
+			}
+		}
+		$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
+		resetGpvImage();
+	}
 
-    function prevYear() {
-        var currentElement = $('select[name=year] > option:selected');
-        var newElement = currentElement.prev('option');
-        if (newElement.length === 0) {
-            return false;
-        } else {
-            $('select[name=year]').val(newElement.val());
-            return true;
-        }
-    }
+	function prevDay() {
+		var currentElement = $(ELEM_NAME_SELECT_DAY + ' > option:selected');
+		var newElement = currentElement.prev('option');
+		if (newElement.length === 0) {
+			if (prevMonth()) {
+				newElement = $(ELEM_NAME_SELECT_DAY + ' > option').last();
+			} else {
+				return false;
+			}
+		}
+		$(ELEM_NAME_SELECT_DAY).val(newElement.val());
+		return true;
+	}
 
-    function nextYear() {
-        var currentElement = $('select[name=year] > option:selected');
-        var newElement = currentElement.next('option');
-        if (newElement.length === 0) {
-            return false;
-        } else {
-            $('select[name=year]').val(newElement.val());
-            return true;
-        }
-    }
+	function nextDay() {
+		var currentElement = $(ELEM_NAME_SELECT_DAY + ' > option:selected');
+		var newElement = currentElement.next('option');
+		if (newElement.length === 0) {
+			if (nextMonth()) {
+				newElement = $(ELEM_NAME_SELECT_DAY + ' > option').first();
+			} else {
+				return false;
+			}
+		}
+		$(ELEM_NAME_SELECT_DAY).val(newElement.val());
+		return true;
+	}
 
-    function initYearOptions() {
-        const thisYear = (new Date()).getFullYear();
-        for (var i = START_YEAR; i <= thisYear; i++) {
-            $('select[name=year]').append('<option value="' + i + '">' + i + '</option>');
-        }
-    }
+	function prevMonth() {
+		var currentElement = $(ELEM_NAME_SELECT_MONTH + ' > option:selected');
+		var newElement = currentElement.prev('option');
+		if (newElement.length === 0) {
+			if (prevYear()) {
+				newElement = $(ELEM_NAME_SELECT_MONTH + ' > option').last();
+			} else {
+				return false;
+			}
+		}
+		$(ELEM_NAME_SELECT_MONTH).val(newElement.val());
+		const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
+		initDayOptions(year, newElement.val());
+		return true;
+	}
 
-    function initDayOptions(year, month) {
-        var lastDay = new Array('', 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
-        if ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) {
-            lastDay[2] = 29;
-        }
+	function nextMonth() {
+		var currentElement = $(ELEM_NAME_SELECT_MONTH + ' > option:selected');
+		var newElement = currentElement.next('option');
+		if (newElement.length === 0) {
+			if (nextYear()) {
+				newElement = $(ELEM_NAME_SELECT_MONTH + ' > option').first();
+			} else {
+				return false;
+			}
+		}
+		$(ELEM_NAME_SELECT_MONTH).val(newElement.val());
+		const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
+		initDayOptions(year, newElement.val());
+		return true;
+	}
 
-        var prevDay = null;
-        if ($('select[name=day] > option').length > 0) {
-            prevDay = $('select[name=day] > option:selected').val();
-            $('select[name=day]').empty();
-        }
+	function prevYear() {
+		var currentElement = $(ELEM_NAME_SELECT_YEAR + ' > option:selected');
+		var newElement = currentElement.prev('option');
+		if (newElement.length === 0) {
+			return false;
+		}
+		$(ELEM_NAME_SELECT_YEAR).val(newElement.val());
+		return true;
+	}
 
-        for (var i = 1; i <= lastDay[month]; i++) {
-            $('select[name=day]').append('<option value="' + i + '">' + i + '</option>');
-        }
+	function nextYear() {
+		var currentElement = $(ELEM_NAME_SELECT_YEAR + ' > option:selected');
+		var newElement = currentElement.next('option');
+		if (newElement.length === 0) {
+			return false;
+		}
+		$(ELEM_NAME_SELECT_YEAR).val(newElement.val());
+		return true;
+	}
 
-        if (prevDay !== null) {
-            if (prevDay > lastDay[month]) {
-                prevDay = lastDay[month];
-            }
-            $('select[name=day]').val(prevDay);
-        }
-    }
+	function initYearOptions() {
+		const thisYear = (new Date()).getFullYear();
+		for (var i = START_YEAR; i <= thisYear; i++) {
+			$(ELEM_NAME_SELECT_YEAR).append('<option value="' + i + '">' + i + '</option>');
+		}
+	}
 
-    function initDateSelect() {
-        var now = new Date();
-        now.setHours(now.getHours() - 3);
-        const year = now.getFullYear();
-        const month = now.getMonth() + 1;
-        const day = now.getDate();
-        const hour = now.getHours();
-        $('select[name=year]').val(year);
-        $('select[name=month]').val(month);
-        $('select[name=day]').val(day);
-        $('select[name=hour]').val(hour);
-    }
+	function initDayOptions(year, month) {
+		var lastDay = new Array('', 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+		if ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) {
+			lastDay[2] = 29;
+		}
 
-    function resetGpvImage() {
-        const area = $('input[name=area]:checked').val();
-        const type = $('input[name=type]:checked').val();
-        const year = $('select[name=year]').val();
-        const month = toDoubleDigits($('select[name=month]').val());
-        const day = toDoubleDigits($('select[name=day]').val());
-        const hour = toDoubleDigits($('select[name=hour]').val());
-        const delay = autoPlayStatus === AUTO_PLAY_STATUS.STOP ? ANIMATION_DURATION : ANIMATION_DURATION_AUTO;
+		var prevDay = null;
+		if ($(ELEM_NAME_SELECT_DAY + ' > option').length > 0) {
+			prevDay = $(ELEM_NAME_SELECT_DAY + ' > option:selected').val();
+			$(ELEM_NAME_SELECT_DAY).empty();
+		}
 
-        const path = 'images/gpv/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/' +
-            'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
+		for (var i = 1; i <= lastDay[month]; i++) {
+			$(ELEM_NAME_SELECT_DAY).append('<option value="' + i + '">' + i + '</option>');
+		}
 
-        $('#GpvImage').append('<div></div>');
-        $('#GpvImage > div').last().css('animation-duration', delay + 'ms');
-        $('#GpvImage > div').last().css('background-image', 'url(' + path + ')');
-        $('#GpvImage > div').first().delay(delay).queue(function() {
-            $(this).remove();
-        })
-    }
+		if (prevDay !== null) {
+			if (prevDay > lastDay[month]) {
+				prevDay = lastDay[month];
+			}
+			$(ELEM_NAME_SELECT_DAY).val(prevDay);
+		}
+	}
 
-    function autoPlay() {
-        const interval = $('select[name=speed] > option:selected').val();
-        autoPlayTimer = setTimeout(function() {
-            isNormalPlay ? nextHour() : prevHour();
-            autoPlay();
-        }, interval);
-    }
+	function initDateSelect() {
+		var now = new Date();
+		var hour_delta = now.getHours() % 3 + 1;
+		if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
+			hour_delta = 0;
+		}
+		now.setHours(now.getHours() - hour_delta);
+		const year = now.getFullYear();
+		const month = now.getMonth() + 1;
+		const day = now.getDate();
+		const hour = now.getHours();
+		$(ELEM_NAME_SELECT_YEAR).val(year);
+		$(ELEM_NAME_SELECT_MONTH).val(month);
+		$(ELEM_NAME_SELECT_DAY).val(day);
+		$(ELEM_NAME_SELECT_HOUR).val(hour);
+	}
 
-    function stopAutoPlay() {
-        autoPlayStatus = AUTO_PLAY_STATUS.STOP;
-        clearTimeout(autoPlayTimer);
-        $('#PrevButton').removeClass('Pause');
-        $('#PrevButton').addClass('Play');
-        $('#NextButton').removeClass('Pause');
-        $('#NextButton').addClass('Play');
-    }
+	function resetGpvImage() {
+		if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
+			return;
+		}
 
-    function toDoubleDigits(n) {
-        n += '';
-        if (n.length === 1) {
-            n = "0" + n;
-        }
-        return n;
-    }
+		const area = $(ELEM_NAME_INPUT_AREA + ':checked').val();
+		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+		const year = $(ELEM_NAME_SELECT_YEAR).val();
+		const month = toDoubleDigits($(ELEM_NAME_SELECT_MONTH).val());
+		const day = toDoubleDigits($(ELEM_NAME_SELECT_DAY).val());
+		const hour = toDoubleDigits($(ELEM_NAME_SELECT_HOUR).val());
+		const delay = autoPlayStatus === AUTO_PLAY_STATUS.STOP ? ANIMATION_DURATION_MANUAL : ANIMATION_DURATION_AUTO;
+
+		var path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
+			+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
+		if (IMAGE_TYPE === 1) {
+	        path = 'images/satellite/' + area + '/' + year + '/' + month + '/' + day + '/' +
+    	        'satellite_' + area + '_' + year + month + day + '_' + hour + '_30_00.jpg';
+		}
+		console.log(path);
+
+		$(ELEM_NAME_GPV_IMAGE).append('<div></div>');
+		$(ELEM_NAME_GPV_IMAGE + '> div').last().css('animation-duration', delay + 'ms');
+		$(ELEM_NAME_GPV_IMAGE + '> div').last().css('background-image', 'url(' + path + ')');
+		$(ELEM_NAME_GPV_IMAGE + '> div').first().delay(delay).queue(function() {
+			$(this).remove();
+		})
+	}
+
+	function autoPlay() {
+		const interval = $(ELEM_NAME_SELECT_SPEED + ' > option:selected').val();
+		autoPlayTimer = setTimeout(function() {
+			autoPlayStatus === AUTO_PLAY_STATUS.PLAY ? nextHour() : prevHour();
+			autoPlay();
+		}, interval);
+	}
+
+	function startAutoPlay(status) {
+		clearTimeout(autoPlayTimer);
+		autoPlay();
+		switch (status) {
+			case AUTO_PLAY_STATUS.PLAY:
+				autoPlayStatus = status;
+				$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PAUSE);
+				$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
+				$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PLAY);
+				$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PAUSE);
+				break;
+			case AUTO_PLAY_STATUS.REVERSE:
+				autoPlayStatus = status;
+				$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PLAY);
+				$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PAUSE);
+				$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
+				$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
+				break;
+			case AUTO_PLAY_STATUS.STOP:
+				console.warn('status=' + status);
+				stopAutoPlay();
+				break;
+			default:
+				break;
+		}
+	}
+
+	function stopAutoPlay() {
+		autoPlayStatus = AUTO_PLAY_STATUS.STOP;
+		clearTimeout(autoPlayTimer);
+		$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PAUSE);
+		$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
+		$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
+		$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
+	}
+
+	function toDoubleDigits(n) {
+		n += '';
+		if (n.length === 1) {
+			n = "0" + n;
+		}
+		return n;
+	}
 
 });
