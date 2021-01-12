@@ -1,9 +1,17 @@
 $(document).ready(function() {
 	'use strict';
 
-	const START_YEAR = 2021;
-
+	const START_YEAR             = 2021;
 	const JOB_SCHEDULED_TIME_MIN = 40;
+	const GPV_UPDATE_MIN         = 30;
+
+	const GPV_URL = 'http://weather-gpv.info/';
+
+	const QUERY_KEY_TYPE = 'type';
+	const QUERY_VAL_GPV  = 'gpv';
+	const QUERY_VAL_SAT  = 'sat';
+	const IMAGE_TYPE = getParameterByName(QUERY_KEY_TYPE, window.location.href);
+	//console.log('IMAGE_TYPE=' + IMAGE_TYPE);
 
 	const AUTO_PLAY_STATUS = {
 		STOP : 0,
@@ -17,7 +25,8 @@ $(document).ready(function() {
 	const KEY_CODE_LEFT  = 37;
 	const KEY_CODE_RIGHT = 39;
 
-	const ELEM_NAME_INPUT_AREA      = 'input[name=area]';
+	const ELEM_NAME_INPUT_AREA_GPV  = 'input[name=area_gpv]';
+	const ELEM_NAME_INPUT_AREA_SAT  = 'input[name=area_sat]';
 	const ELEM_NAME_INPUT_TYPE      = 'input[name=type]';
 	const ELEM_NAME_SELECT_YEAR     = 'select[name=year]';
 	const ELEM_NAME_SELECT_MONTH    = 'select[name=month]';
@@ -25,9 +34,13 @@ $(document).ready(function() {
 	const ELEM_NAME_SELECT_HOUR     = 'select[name=hour]';
 	const ELEM_NAME_INPUT_AUTO_PLAY = 'input[name=autoplay]';
 	const ELEM_NAME_SELECT_SPEED    = 'select[name=speed]';
+	const ELEM_NAME_TYPE            = '#Type';
+	const ELEM_NAME_AREA_GPV        = '#GpvArea';
+	const ELEM_NAME_AREA_SAT        = '#SatelliteArea';
 	const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
 	const ELEM_NAME_NEXT_BUTTON     = '#NextButton';
 	const ELEM_NAME_GPV_IMAGE       = '#GpvImage';
+	const ELEM_NAME_GPV_FRAME       = '#GpvFrame';
 	const CLASS_NAME_PLAY           = 'Play';
 	const CLASS_NAME_PAUSE          = 'Pause';
 
@@ -41,6 +54,14 @@ $(document).ready(function() {
 	initDayOptions((new Date()).getFullYear(), (new Date()).getMonth() + 1);
 	initDateSelect();
 	resetGpvImage();
+	resetGpvFrame();
+	if (IMAGE_TYPE === QUERY_VAL_SAT) {
+		$(ELEM_NAME_AREA_GPV).css('display', 'none');
+		$(ELEM_NAME_TYPE).css('display', 'none');
+		$(ELEM_NAME_GPV_FRAME).css('display', 'none');
+	} else {
+		$(ELEM_NAME_AREA_SAT).css('display', 'none');
+	}
 
 	//
 	// events
@@ -64,14 +85,22 @@ $(document).ready(function() {
 		}
 	});
 
-	$(ELEM_NAME_INPUT_AREA).change(function() {
+	$(ELEM_NAME_INPUT_AREA_GPV).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
+		resetGpvFrame();
+	});
+
+	$(ELEM_NAME_INPUT_AREA_SAT).change(function() {
+		stopAutoPlay();
+		resetGpvImage();
+		resetGpvFrame();
 	});
 
 	$(ELEM_NAME_INPUT_TYPE).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
+		resetGpvFrame();
 	});
 
 	$(ELEM_NAME_SELECT_YEAR).change(function() {
@@ -141,7 +170,6 @@ $(document).ready(function() {
 	});
 
 	$(ELEM_NAME_SELECT_SPEED).change(function() {
-		console.log($(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked'));
 		if ($(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked')) {
 			switch (autoPlayStatus) {
 				case AUTO_PLAY_STATUS.PLAY:
@@ -330,7 +358,8 @@ $(document).ready(function() {
 			return;
 		}
 
-		const area = $(ELEM_NAME_INPUT_AREA + ':checked').val();
+		const areaElem = (IMAGE_TYPE === QUERY_VAL_SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
+		const area = $(areaElem + ':checked').val();
 		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
 		const year = $(ELEM_NAME_SELECT_YEAR).val();
 		const month = toDoubleDigits($(ELEM_NAME_SELECT_MONTH).val());
@@ -338,13 +367,15 @@ $(document).ready(function() {
 		const hour = toDoubleDigits($(ELEM_NAME_SELECT_HOUR).val());
 		const delay = autoPlayStatus === AUTO_PLAY_STATUS.STOP ? ANIMATION_DURATION_MANUAL : ANIMATION_DURATION_AUTO;
 
-		var path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
-			+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
-		if (IMAGE_TYPE === 1) {
-	        path = 'images/satellite/' + area + '/' + year + '/' + month + '/' + day + '/' +
-    	        'satellite_' + area + '_' + year + month + day + '_' + hour + '_30_00.jpg';
+		var path = '';
+		if (IMAGE_TYPE === QUERY_VAL_SAT) {
+			path = 'images/satellite/' + area + '/' + year + '/' + month + '/' + day + '/' +
+				'satellite_' + area + '_' + year + month + day + '_' + hour + '_30_00.jpg';
+		} else {
+			path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
+				+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
 		}
-		console.log(path);
+		//console.log(path);
 
 		$(ELEM_NAME_GPV_IMAGE).append('<div></div>');
 		$(ELEM_NAME_GPV_IMAGE + '> div').last().css('animation-duration', delay + 'ms');
@@ -352,6 +383,32 @@ $(document).ready(function() {
 		$(ELEM_NAME_GPV_IMAGE + '> div').first().delay(delay).queue(function() {
 			$(this).remove();
 		})
+	}
+
+	function resetGpvFrame() {
+		if (IMAGE_TYPE === QUERY_VAL_SAT) {
+			return;
+		}
+
+		const areaElem = (IMAGE_TYPE === QUERY_VAL_SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
+		const area = $(areaElem + ':checked').val();
+		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+
+		var now = new Date();
+		var hour_delta = now.getHours() % 3 + 3;
+		if (hour_delta === 5 && now.getMinutes() >= GPV_UPDATE_MIN) {
+			hour_delta = 2;
+		}
+		now.setHours(now.getHours() - hour_delta);
+		const year = now.getFullYear();
+		const month = toDoubleDigits(now.getMonth() + 1);
+		const day = toDoubleDigits(now.getDate());
+		const hour = toDoubleDigits(now.getHours());
+
+		const url = GPV_URL + 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.html';
+		//console.log(url);
+
+		$(ELEM_NAME_GPV_FRAME + ' > iframe').attr('src', url);
 	}
 
 	function autoPlay() {
@@ -396,6 +453,15 @@ $(document).ready(function() {
 		$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
 		$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
 		$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
+	}
+
+	function getParameterByName(name, url) {
+		name = name.replace(/[\[\]]/g, '\\$&');
+		var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+		var results = regex.exec(url);
+		if (!results) return null;
+		if (!results[2]) return '';
+		return decodeURIComponent(results[2].replace(/\+/g, ' '));
 	}
 
 	function toDoubleDigits(n) {
