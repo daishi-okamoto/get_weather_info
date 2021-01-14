@@ -348,19 +348,26 @@ $(document).ready(function() {
 
 	function initDateSelect(year, month, day, hour) {
 		//console.log('year=' + year + ', month=' + month + ', day=' + day + ', hour=' + hour);
-		if (!Number.isInteger(year) || !Number.isInteger(month)
-			|| !Number.isInteger(day) || !Number.isInteger(hour)) {
-			var now = new Date();
-			var hour_delta = now.getHours() % 3 + 1;
-			if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
-				hour_delta = 0;
-			}
-			now.setHours(now.getHours() - hour_delta);
+		var now = new Date();
+		var hour_delta = now.getHours() % 3 + 1;
+		if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
+			hour_delta = 0;
+		}
+		now.setHours(now.getHours() - hour_delta);
+
+		if (!Number.isInteger(year)) {
 			year = now.getFullYear();
+		}
+		if (!Number.isInteger(month)) {
 			month = now.getMonth() + 1;
+		}
+		if (!Number.isInteger(day)) {
 			day = now.getDate();
+		}
+		if (!Number.isInteger(hour)) {
 			hour = now.getHours();
 		}
+
 		$(ELEM_NAME_SELECT_YEAR).val(year);
 		$(ELEM_NAME_SELECT_MONTH).val(month);
 		$(ELEM_NAME_SELECT_DAY).val(day);
