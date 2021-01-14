@@ -7,9 +7,13 @@ $(document).ready(function() {
 
 	const GPV_URL = 'http://weather-gpv.info/';
 
-	const QUERY_KEY_TYPE = 'type';
-	const QUERY_VAL_GPV  = 'gpv';
-	const QUERY_VAL_SAT  = 'sat';
+	const QUERY_KEY_TYPE  = 'type';
+	const QUERY_KEY_YEAR  = 'y';
+	const QUERY_KEY_MONTH = 'm';
+	const QUERY_KEY_DAY   = 'd';
+	const QUERY_KEY_HOUR  = 'h';
+	const QUERY_VAL_GPV   = 'gpv';
+	const QUERY_VAL_SAT   = 'sat';
 	const IMAGE_TYPE = getParameterByName(QUERY_KEY_TYPE, window.location.href);
 	//console.log('IMAGE_TYPE=' + IMAGE_TYPE);
 
@@ -35,6 +39,8 @@ $(document).ready(function() {
 	const ELEM_NAME_INPUT_AUTO_PLAY = 'input[name=autoplay]';
 	const ELEM_NAME_SELECT_SPEED    = 'select[name=speed]';
 	const ELEM_NAME_TYPE            = '#Type';
+	const ELEM_NAME_LINK_GPV        = '#GpvLink';
+	const ELEM_NAME_LINK_SAT        = '#SatelliteLink';
 	const ELEM_NAME_AREA_GPV        = '#GpvArea';
 	const ELEM_NAME_AREA_SAT        = '#SatelliteArea';
 	const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
@@ -52,7 +58,11 @@ $(document).ready(function() {
 	//
 	initYearOptions();
 	initDayOptions((new Date()).getFullYear(), (new Date()).getMonth() + 1);
-	initDateSelect();
+	initDateSelect(
+		parseInt(getParameterByName(QUERY_KEY_YEAR, window.location.href)),
+		parseInt(getParameterByName(QUERY_KEY_MONTH, window.location.href)),
+		parseInt(getParameterByName(QUERY_KEY_DAY, window.location.href)),
+		parseInt(getParameterByName(QUERY_KEY_HOUR, window.location.href)));
 	resetGpvImage();
 	resetGpvFrame();
 	if (IMAGE_TYPE === QUERY_VAL_SAT) {
@@ -336,17 +346,21 @@ $(document).ready(function() {
 		}
 	}
 
-	function initDateSelect() {
-		var now = new Date();
-		var hour_delta = now.getHours() % 3 + 1;
-		if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
-			hour_delta = 0;
+	function initDateSelect(year, month, day, hour) {
+		//console.log('year=' + year + ', month=' + month + ', day=' + day + ', hour=' + hour);
+		if (!Number.isInteger(year) || !Number.isInteger(month)
+			|| !Number.isInteger(day) || !Number.isInteger(hour)) {
+			var now = new Date();
+			var hour_delta = now.getHours() % 3 + 1;
+			if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
+				hour_delta = 0;
+			}
+			now.setHours(now.getHours() - hour_delta);
+			year = now.getFullYear();
+			month = now.getMonth() + 1;
+			day = now.getDate();
+			hour = now.getHours();
 		}
-		now.setHours(now.getHours() - hour_delta);
-		const year = now.getFullYear();
-		const month = now.getMonth() + 1;
-		const day = now.getDate();
-		const hour = now.getHours();
 		$(ELEM_NAME_SELECT_YEAR).val(year);
 		$(ELEM_NAME_SELECT_MONTH).val(month);
 		$(ELEM_NAME_SELECT_DAY).val(day);
@@ -362,18 +376,27 @@ $(document).ready(function() {
 		const area = $(areaElem + ':checked').val();
 		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
 		const year = $(ELEM_NAME_SELECT_YEAR).val();
-		const month = toDoubleDigits($(ELEM_NAME_SELECT_MONTH).val());
-		const day = toDoubleDigits($(ELEM_NAME_SELECT_DAY).val());
-		const hour = toDoubleDigits($(ELEM_NAME_SELECT_HOUR).val());
+		const month = $(ELEM_NAME_SELECT_MONTH).val();
+		const day = $(ELEM_NAME_SELECT_DAY).val();
+		const hour = $(ELEM_NAME_SELECT_HOUR).val();
 		const delay = autoPlayStatus === AUTO_PLAY_STATUS.STOP ? ANIMATION_DURATION_MANUAL : ANIMATION_DURATION_AUTO;
 
+		var href = './index.html?';
 		var path = '';
 		if (IMAGE_TYPE === QUERY_VAL_SAT) {
-			path = 'images/satellite/' + area + '/' + year + '/' + month + '/' + day + '/' +
-				'satellite_' + area + '_' + year + month + day + '_' + hour + '_30_00.jpg';
+			path = 'images/satellite/' + area + '/' + year + '/' + toDoubleDigits(month) + '/' + toDoubleDigits(day) + '/'
+				+ 'satellite_' + area + '_' + year + toDoubleDigits(month) + toDoubleDigits(day) + '_' + toDoubleDigits(hour) + '_30_00.jpg';
+			href += QUERY_KEY_TYPE + '=' + QUERY_VAL_GPV + '&'
+				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+			$(ELEM_NAME_LINK_GPV).attr('href', href);
 		} else {
-			path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
-				+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
+			path = 'images/' + type + '/' + area + '/' + year + '/' + toDoubleDigits(month) + '/' + toDoubleDigits(day) + '/'
+				+ 'msm_' + type + '_' + area + '_' + year + toDoubleDigits(month) + toDoubleDigits(day) + toDoubleDigits(hour) + '.png';
+			href += QUERY_KEY_TYPE + '=' + QUERY_VAL_SAT + '&'
+				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+			$(ELEM_NAME_LINK_SAT).attr('href', href);
 		}
 		//console.log(path);
 

@@ -205,22 +205,26 @@ h2 .External{
  * for Smartphone
  */
 @media only screen and (max-width: 800px) {
+body{
+	width: 800px;
+}
+
+h2{
+	margin: 12px 0px 12px;
+	font-size: 28pt;
+}
+
+#Container>h2{
+	padding-left: 30pt;
+}
+
 h3{
 	display: none;
 }
 
-.Option, #Control{
-	display: block;
-	width: 100%;
-	margin: 36px 0px;
-}
-
-#Area, #Type, #Date{
-	margin-left: 0px;
-}
-
 p, label, select, li{
 	font-size: 36pt;
+	line-height: 140%;
 }
 
 label{
@@ -235,6 +239,23 @@ button{
 
 button:first-child{
 	margin-right: 12px;
+}
+
+.External{
+	padding-right: 40pt;
+}
+
+h2 .External{
+	padding-right: 30pt;
+}
+
+.Option, #Control, #AutoPlay{
+	display: block;
+	margin: 36px 0px;
+}
+
+#Area, #Type, #Date{
+	margin-left: 0px;
 }
 
 #Date p{
@@ -253,4 +274,3 @@ button:first-child{
 	margin-top: 36px;
 }
 }
-
