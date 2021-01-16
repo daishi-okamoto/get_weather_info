@@ -7,6 +7,8 @@ $(document).ready(function() {
 
 	const GPV_URL = 'http://weather-gpv.info/';
 
+	const MONTH_NAME_ARRAY = new Array('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC');
+
 	const QUERY_KEY_TYPE  = 'type';
 	const QUERY_KEY_YEAR  = 'y';
 	const QUERY_KEY_MONTH = 'm';
@@ -45,6 +47,7 @@ $(document).ready(function() {
 	const ELEM_NAME_AREA_SAT        = '#SatelliteArea';
 	const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
 	const ELEM_NAME_NEXT_BUTTON     = '#NextButton';
+	const ELEM_NAME_RELOAD_BUTTON   = '#ReloadButton';
 	const ELEM_NAME_GPV_IMAGE       = '#GpvImage';
 	const ELEM_NAME_GPV_FRAME       = '#GpvFrame';
 	const CLASS_NAME_PLAY           = 'Play';
@@ -64,11 +67,11 @@ $(document).ready(function() {
 		parseInt(getParameterByName(QUERY_KEY_DAY, window.location.href)),
 		parseInt(getParameterByName(QUERY_KEY_HOUR, window.location.href)));
 	resetGpvImage();
-	resetGpvFrame();
+	//resetGpvFrame();
 	if (IMAGE_TYPE === QUERY_VAL_SAT) {
 		$(ELEM_NAME_AREA_GPV).css('display', 'none');
 		$(ELEM_NAME_TYPE).css('display', 'none');
-		$(ELEM_NAME_GPV_FRAME).css('display', 'none');
+		//$(ELEM_NAME_GPV_FRAME).css('display', 'none');
 	} else {
 		$(ELEM_NAME_AREA_SAT).css('display', 'none');
 	}
@@ -98,19 +101,19 @@ $(document).ready(function() {
 	$(ELEM_NAME_INPUT_AREA_GPV).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
-		resetGpvFrame();
+		//resetGpvFrame();
 	});
 
 	$(ELEM_NAME_INPUT_AREA_SAT).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
-		resetGpvFrame();
+		//resetGpvFrame();
 	});
 
 	$(ELEM_NAME_INPUT_TYPE).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
-		resetGpvFrame();
+		//resetGpvFrame();
 	});
 
 	$(ELEM_NAME_SELECT_YEAR).change(function() {
@@ -172,6 +175,12 @@ $(document).ready(function() {
 		} else {
 			nextHour();
 		}
+	});
+
+	$(ELEM_NAME_RELOAD_BUTTON).click(function() {
+		var href = './index.html?' + QUERY_KEY_TYPE + '=';
+		href += (IMAGE_TYPE === QUERY_VAL_GPV) ? QUERY_VAL_GPV : QUERY_VAL_SAT;
+		window.location.href = href;
 	});
 
 	$(ELEM_NAME_INPUT_AUTO_PLAY).change(function() {
@@ -349,11 +358,13 @@ $(document).ready(function() {
 	function initDateSelect(year, month, day, hour) {
 		//console.log('year=' + year + ', month=' + month + ', day=' + day + ', hour=' + hour);
 		var now = new Date();
+		/*
 		var hour_delta = now.getHours() % 3 + 1;
 		if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
 			hour_delta = 0;
 		}
 		now.setHours(now.getHours() - hour_delta);
+		*/
 
 		if (!Number.isInteger(year)) {
 			year = now.getFullYear();
@@ -398,8 +409,7 @@ $(document).ready(function() {
 				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
 			$(ELEM_NAME_LINK_GPV).attr('href', href);
 		} else {
-			path = 'images/' + type + '/' + area + '/' + year + '/' + toDoubleDigits(month) + '/' + toDoubleDigits(day) + '/'
-				+ 'msm_' + type + '_' + area + '_' + year + toDoubleDigits(month) + toDoubleDigits(day) + toDoubleDigits(hour) + '.png';
+			path = getGpvImagePath();
 			href += QUERY_KEY_TYPE + '=' + QUERY_VAL_SAT + '&'
 				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
 				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
@@ -413,6 +423,47 @@ $(document).ready(function() {
 		$(ELEM_NAME_GPV_IMAGE + '> div').first().delay(delay).queue(function() {
 			$(this).remove();
 		})
+	}
+
+	function getGpvImagePath() {
+		const now = new Date();
+		const area = $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val();
+		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+		var year = $(ELEM_NAME_SELECT_YEAR).val();
+		var month = $(ELEM_NAME_SELECT_MONTH).val();
+		var day = $(ELEM_NAME_SELECT_DAY).val();
+		var hour = $(ELEM_NAME_SELECT_HOUR).val();
+
+		var selectedDate = new Date(year, (month - 1), day, hour, now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+		var hour_delta = Math.round(((selectedDate.getTime() - now.getTime()) / (1000 * 3600)));
+
+		var path = '';
+		if (hour_delta > -3) {
+			var index = now.getHours() % 3;
+			if (index === 2 && now.getMinutes() >= GPV_UPDATE_MIN) {
+				index = -1;
+			}
+			index += hour_delta + 4;
+
+			now.setHours(now.getHours() + hour_delta);
+			year = now.getUTCFullYear();
+			month = MONTH_NAME_ARRAY[now.getUTCMonth()];
+			day = toDoubleDigits(now.getUTCDate());
+			hour = toDoubleDigits(now.getUTCHours());
+
+			path = GPV_URL + 'msm/msm_' + type + '_' + area + '_'
+				+ index + '.' + hour + 'Z' + day + month + year + '.png';
+		} else {
+			month = toDoubleDigits(month);
+			day = toDoubleDigits(day);
+			hour = toDoubleDigits(hour);
+
+			path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
+				+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
+		}
+
+		//console.log(path);
+		return path;
 	}
 
 	function resetGpvFrame() {
