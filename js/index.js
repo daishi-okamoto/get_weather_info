@@ -6,17 +6,21 @@ $(document).ready(function() {
 	const GPV_UPDATE_MIN         = 30;
 
 	const GPV_URL = 'http://weather-gpv.info/';
+	const GPV_IMAGE_WIDTH  = 800;
+	const GPV_IMAGE_HEIGHT = 600;
 
 	const MONTH_NAME_ARRAY = new Array('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC');
 
-	const QUERY_KEY_TYPE  = 'type';
-	const QUERY_KEY_YEAR  = 'y';
-	const QUERY_KEY_MONTH = 'm';
-	const QUERY_KEY_DAY   = 'd';
-	const QUERY_KEY_HOUR  = 'h';
-	const QUERY_VAL_GPV   = 'gpv';
-	const QUERY_VAL_SAT   = 'sat';
-	const IMAGE_TYPE = getParameterByName(QUERY_KEY_TYPE, window.location.href);
+	const QUERY_KEY_IMG_TYPE = 'img';
+	const QUERY_KEY_AREA     = 'area';
+	const QUERY_KEY_TYPE     = 'type';
+	const QUERY_KEY_YEAR     = 'y';
+	const QUERY_KEY_MONTH    = 'm';
+	const QUERY_KEY_DAY      = 'd';
+	const QUERY_KEY_HOUR     = 'h';
+	const QUERY_VAL_GPV      = 'gpv';
+	const QUERY_VAL_SAT      = 'sat';
+	const IMAGE_TYPE = getParameterByName(QUERY_KEY_IMG_TYPE);
 	//console.log('IMAGE_TYPE=' + IMAGE_TYPE);
 
 	const AUTO_PLAY_STATUS = {
@@ -27,6 +31,8 @@ $(document).ready(function() {
 
 	const ANIMATION_DURATION_MANUAL = 100;
 	const ANIMATION_DURATION_AUTO   = 200;
+
+	const TOUCH_MOVE_THRESHOLD = 25;
 
 	const KEY_CODE_LEFT  = 37;
 	const KEY_CODE_RIGHT = 39;
@@ -40,6 +46,7 @@ $(document).ready(function() {
 	const ELEM_NAME_SELECT_HOUR     = 'select[name=hour]';
 	const ELEM_NAME_INPUT_AUTO_PLAY = 'input[name=autoplay]';
 	const ELEM_NAME_SELECT_SPEED    = 'select[name=speed]';
+	const ELEM_NAME_OPTION          = '.Option';
 	const ELEM_NAME_TYPE            = '#Type';
 	const ELEM_NAME_LINK_GPV        = '#GpvLink';
 	const ELEM_NAME_LINK_SAT        = '#SatelliteLink';
@@ -48,26 +55,37 @@ $(document).ready(function() {
 	const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
 	const ELEM_NAME_NEXT_BUTTON     = '#NextButton';
 	const ELEM_NAME_RELOAD_BUTTON   = '#ReloadButton';
+	const ELEM_NAME_IMAGE           = '#Image';
 	const ELEM_NAME_GPV_IMAGE       = '#GpvImage';
 	const ELEM_NAME_GPV_FRAME       = '#GpvFrame';
+	const ELEM_NAME_TOUCH_AREA      = '#TouchArea';
 	const CLASS_NAME_PLAY           = 'Play';
 	const CLASS_NAME_PAUSE          = 'Pause';
 
 	var autoPlayTimer = null;
 	var autoPlayStatus = AUTO_PLAY_STATUS.STOP;
 
+	var touchStartX = null;
+	var touchStartY = null;
+	var touchPrevX = null;
+	var touchPrevY = null;
+	var isTouching = false;
+	var isTouchMoved = false;
+
 	//
 	// initialize
 	//
+	initElementSize();
 	initYearOptions();
 	initDayOptions((new Date()).getFullYear(), (new Date()).getMonth() + 1);
 	initDateSelect(
-		parseInt(getParameterByName(QUERY_KEY_YEAR, window.location.href)),
-		parseInt(getParameterByName(QUERY_KEY_MONTH, window.location.href)),
-		parseInt(getParameterByName(QUERY_KEY_DAY, window.location.href)),
-		parseInt(getParameterByName(QUERY_KEY_HOUR, window.location.href)));
+		parseInt(getParameterByName(QUERY_KEY_YEAR)),
+		parseInt(getParameterByName(QUERY_KEY_MONTH)),
+		parseInt(getParameterByName(QUERY_KEY_DAY)),
+		parseInt(getParameterByName(QUERY_KEY_HOUR)));
 	resetGpvImage();
 	//resetGpvFrame();
+	resetUrl();
 	if (IMAGE_TYPE === QUERY_VAL_SAT) {
 		$(ELEM_NAME_AREA_GPV).css('display', 'none');
 		$(ELEM_NAME_TYPE).css('display', 'none');
@@ -77,7 +95,88 @@ $(document).ready(function() {
 	}
 
 	//
-	// events
+	// mouse events
+	//
+	$(ELEM_NAME_TOUCH_AREA).mousedown(function(event) {
+		event.preventDefault();
+		touch(event.clientX, event.clientY);
+	}).mousemove(function(event) {
+		event.preventDefault();
+		move(event.clientX, event.clientY);
+	}).mouseup(function(event) {
+		event.preventDefault();
+		release(event.clientX, event.clientY);
+	});
+
+	//
+	// touch events
+	//
+	$(ELEM_NAME_TOUCH_AREA).bind('touchstart', function(event) {
+		event.preventDefault();
+		touch(event.originalEvent.changedTouches[0].clientX, event.originalEvent.changedTouches[0].clientY);
+	}).bind('touchmove', function(event) {
+		event.preventDefault();
+		move(event.originalEvent.changedTouches[0].clientX, event.originalEvent.changedTouches[0].clientY);
+	}).bind('touchend', function(event) {
+		event.preventDefault();
+		release(event.originalEvent.changedTouches[0].clientX, event.originalEvent.changedTouches[0].clientY);
+	}).bind('touchcancel', function(event) {
+		event.preventDefault();
+		release(event.originalEvent.changedTouches[0].clientX, event.originalEvent.changedTouches[0].clientY);
+	});
+
+	function touch(x, y) {
+		touchStartX = x;
+		touchStartY = y;
+		touchPrevX = x;
+		touchPrevY = y;
+		isTouching = true;
+		isTouchMoved = false;
+	}
+
+	function move(x, y) {
+		if (!isTouching) return;
+		const deltaX =  x - touchPrevX;
+		const deltaY =  y - touchPrevY;
+		//console.log('move: x=' + x + ', y=' + y + ', deltaX=' + deltaX + ', deltaY=' + deltaY);
+
+		if (Math.abs(deltaX) > TOUCH_MOVE_THRESHOLD) {
+			// move horizontal
+			if (autoPlayStatus !== AUTO_PLAY_STATUS.STOP) {
+				stopAutoPlay();
+			}
+			if (deltaX < 0) {
+				prevHour();
+			} else {
+				nextHour();
+			}
+			touchPrevX = x;
+			touchPrevY = y;
+			isTouchMoved = true;
+		} else if (Math.abs(deltaY) > TOUCH_MOVE_THRESHOLD) {
+			// move vertical
+			touchPrevX = x;
+			touchPrevY = y;
+			isTouchMoved = true;
+		}
+	}
+
+	function release(x, y) {
+		if (!isTouching) return;
+		cancel();
+	}
+
+	function cancel() {
+		touchStartX = null;
+		touchStartY = null;
+		touchPrevX = null;
+		touchPrevY = null;
+		isTouching = false;
+		isTouchMoved = false;
+	}
+
+	//
+	// key events
 	//
 	$(this).keydown(function(event) {
 		switch (event.keyCode) {
@@ -98,27 +197,34 @@ $(document).ready(function() {
 		}
 	});
 
+	//
+	// gui events
+	//
 	$(ELEM_NAME_INPUT_AREA_GPV).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
 		//resetGpvFrame();
+		resetUrl();
 	});
 
 	$(ELEM_NAME_INPUT_AREA_SAT).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
 		//resetGpvFrame();
+		resetUrl();
 	});
 
 	$(ELEM_NAME_INPUT_TYPE).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
 		//resetGpvFrame();
+		resetUrl();
 	});
 
 	$(ELEM_NAME_SELECT_YEAR).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
+		resetUrl();
 	});
 
 	$(ELEM_NAME_SELECT_MONTH).change(function() {
@@ -127,6 +233,7 @@ $(document).ready(function() {
 		const month = $(ELEM_NAME_SELECT_MONTH + ' > option:selected').val()
 		initDayOptions(year, month);
 		resetGpvImage();
+		resetUrl();
 	});
 
 	$(ELEM_NAME_SELECT_DAY).change(function() {
@@ -137,6 +244,7 @@ $(document).ready(function() {
 	$(ELEM_NAME_SELECT_HOUR).change(function() {
 		stopAutoPlay();
 		resetGpvImage();
+		resetUrl();
 	});
 
 	$(ELEM_NAME_PREV_BUTTON).click(function() {
@@ -178,8 +286,15 @@ $(document).ready(function() {
 	});
 
 	$(ELEM_NAME_RELOAD_BUTTON).click(function() {
-		var href = './index.html?' + QUERY_KEY_TYPE + '=';
-		href += (IMAGE_TYPE === QUERY_VAL_GPV) ? QUERY_VAL_GPV : QUERY_VAL_SAT;
+		var href = './' + getFileName() + '?';
+		if (IMAGE_TYPE === QUERY_VAL_GPV) {
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_GPV + '&'
+				+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val() + '&'
+				+ QUERY_KEY_TYPE + '=' + $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+		} else {
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_SAT + '&'
+				+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_SAT + ':checked').val();
+		}
 		window.location.href = href;
 	});
 
@@ -224,6 +339,7 @@ $(document).ready(function() {
 		}
 		$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
 		resetGpvImage();
+		resetUrl();
 	}
 
 	function nextHour() {
@@ -242,6 +358,7 @@ $(document).ready(function() {
 		}
 		$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
 		resetGpvImage();
+		resetUrl();
 	}
 
 	function prevDay() {
@@ -324,6 +441,23 @@ $(document).ready(function() {
 		return true;
 	}
 
+	function initElementSize() {
+		const width = window.innerWidth;
+		const height = Math.round((width / GPV_IMAGE_WIDTH) * GPV_IMAGE_HEIGHT);
+		//console.log('width=' + width + ', height=' + height);
+
+		if (width >= GPV_IMAGE_WIDTH) {
+			return;
+		}
+
+		$('#Container').css('width', width + 'px');
+		$(ELEM_NAME_OPTION).css('width', width + 'px');
+		$(ELEM_NAME_IMAGE).css({width: width + 'px', height: height + 'px'});
+		$(ELEM_NAME_GPV_IMAGE).css({width: width + 'px', height: height + 'px'});
+		$(ELEM_NAME_GPV_IMAGE + ' div').css({width: width + 'px', height: height + 'px'});
+		$(ELEM_NAME_TOUCH_AREA).css({width: width + 'px', height: height + 'px'});
+	}
+
 	function initYearOptions() {
 		const thisYear = (new Date()).getFullYear();
 		for (var i = START_YEAR; i <= thisYear; i++) {
@@ -402,15 +536,15 @@ $(document).ready(function() {
 		var href = './index.html?';
 		var path = '';
 		if (IMAGE_TYPE === QUERY_VAL_SAT) {
-			path = 'images/satellite/' + area + '/' + year + '/' + toDoubleDigits(month) + '/' + toDoubleDigits(day) + '/'
-				+ 'satellite_' + area + '_' + year + toDoubleDigits(month) + toDoubleDigits(day) + '_' + toDoubleDigits(hour) + '_30_00.jpg';
-			href += QUERY_KEY_TYPE + '=' + QUERY_VAL_GPV + '&'
+			path = 'images/satellite/' + area + '/' + year + '/' + getDoubleDigits(month) + '/' + getDoubleDigits(day) + '/'
+				+ 'satellite_' + area + '_' + year + getDoubleDigits(month) + getDoubleDigits(day) + '_' + getDoubleDigits(hour) + '_30_00.jpg';
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_GPV + '&'
 				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
 				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
 			$(ELEM_NAME_LINK_GPV).attr('href', href);
 		} else {
 			path = getGpvImagePath();
-			href += QUERY_KEY_TYPE + '=' + QUERY_VAL_SAT + '&'
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_SAT + '&'
 				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
 				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
 			$(ELEM_NAME_LINK_SAT).attr('href', href);
@@ -448,15 +582,15 @@ $(document).ready(function() {
 			now.setHours(now.getHours() + hour_delta);
 			year = now.getUTCFullYear();
 			month = MONTH_NAME_ARRAY[now.getUTCMonth()];
-			day = toDoubleDigits(now.getUTCDate());
-			hour = toDoubleDigits(now.getUTCHours());
+			day = getDoubleDigits(now.getUTCDate());
+			hour = getDoubleDigits(now.getUTCHours());
 
 			path = GPV_URL + 'msm/msm_' + type + '_' + area + '_'
 				+ index + '.' + hour + 'Z' + day + month + year + '.png';
 		} else {
-			month = toDoubleDigits(month);
-			day = toDoubleDigits(day);
-			hour = toDoubleDigits(hour);
+			month = getDoubleDigits(month);
+			day = getDoubleDigits(day);
+			hour = getDoubleDigits(hour);
 
 			path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
 				+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
@@ -482,9 +616,9 @@ $(document).ready(function() {
 		}
 		now.setHours(now.getHours() - hour_delta);
 		const year = now.getFullYear();
-		const month = toDoubleDigits(now.getMonth() + 1);
-		const day = toDoubleDigits(now.getDate());
-		const hour = toDoubleDigits(now.getHours());
+		const month = getDoubleDigits(now.getMonth() + 1);
+		const day = getDoubleDigits(now.getDate());
+		const hour = getDoubleDigits(now.getHours());
 
 		const url = GPV_URL + 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.html';
 		//console.log(url);
@@ -536,7 +670,7 @@ $(document).ready(function() {
 		$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
 	}
 
-	function getParameterByName(name, url) {
+	function getParameterByName(name, url = window.location.href) {
 		name = name.replace(/[\[\]]/g, '\\$&');
 		var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
 		var results = regex.exec(url);
@@ -545,12 +679,27 @@ $(document).ready(function() {
 		return decodeURIComponent(results[2].replace(/\+/g, ' '));
 	}
 
-	function toDoubleDigits(n) {
-		n += '';
-		if (n.length === 1) {
-			n = "0" + n;
-		}
-		return n;
+	function resetUrl() {
+		const areaElem = (IMAGE_TYPE === QUERY_VAL_SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
+		const area = $(areaElem + ':checked').val();
+		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+		const year = $(ELEM_NAME_SELECT_YEAR).val();
+		const month = $(ELEM_NAME_SELECT_MONTH).val();
+		const day = $(ELEM_NAME_SELECT_DAY).val();
+		const hour = $(ELEM_NAME_SELECT_HOUR).val();
+		const url = getFileName() + '?' + QUERY_KEY_IMG_TYPE + '=' + IMAGE_TYPE + '&'
+			+ QUERY_KEY_AREA + '=' + area + '&' + QUERY_KEY_TYPE + '=' + type + '&'
+			+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+			+ QUERY_KEY_DAY + '=' + day + '&' + QUERY_KEY_HOUR + '=' + hour;
+		history.replaceState('', '', url);
+	}
+
+	function getFileName(url = window.location.href) {
+		return url.split('/').pop().split('?').shift();
+	}
+
+	function getDoubleDigits(n) {
+		return (n.toString().length === 1) ? ('0' + n) : n.toString();
 	}
 
 });

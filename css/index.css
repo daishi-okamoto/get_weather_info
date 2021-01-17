@@ -160,8 +160,9 @@ h2 .External{
 	margin-left: 0px;
 }
 
-#Image, #GpvImage, #GpvImage div{
-	width: 800px;
+#Image, #GpvImage, #GpvImage div, #TouchArea{
+	width: 100%;
+	max-width: 800px;
 	height: 600px;
 }
 
@@ -182,14 +183,14 @@ h2 .External{
 	transform: translate(-50%, -50%);
 }
 
-#GpvImage, #GpvImage div{
+#GpvImage, #GpvImage div, #TouchArea{
 	position: absolute;
 	top: 0px;
 	left: 0px;
 }
 
 #GpvImage div{
-	background-position: center;
+	background-position: left top;
 	background-repeat: no-repeat;
 	background-size: contain;
 	animation-name: fade-in;
@@ -212,7 +213,7 @@ body{
 
 h2{
 	margin: 12px 0px 12px;
-	font-size: 28pt;
+	font-size: 24pt;
 }
 
 #Container>h2{
@@ -223,9 +224,16 @@ h3{
 	display: none;
 }
 
-p, label, select, li{
-	font-size: 36pt;
+p, label, select, button, li{
 	line-height: 140%;
+}
+
+p, label, select, button{
+	font-size: 20pt;
+}
+
+li{
+	font-size: 16pt;
 }
 
 label{
@@ -233,8 +241,8 @@ label{
 }
 
 button{
-	width: 144px;
-	height: 144px;
+	width: 120px;
+	height: 120px;
 	vertical-align: -55%;
 }
 
@@ -243,7 +251,7 @@ button:first-child{
 }
 
 .External{
-	padding-right: 40pt;
+	padding-right: 20pt;
 }
 
 h2 .External{
@@ -255,8 +263,17 @@ h2 .External{
 	margin: 36px 0px;
 }
 
+#Container{
+	padding-top: 0px;
+}
+
 #Area, #Type, #Date{
 	margin-left: 0px;
+}
+
+#Date{
+	display: block;
+	text-align: center;
 }
 
 #Date p{
@@ -264,14 +281,20 @@ h2 .External{
 }
 
 #Button{
+	display: block;
 	margin-left: 0px;
+	text-align: center;
 }
 
 #AutoPlay{
-	margin-left: 24px;
+	display: none;
 }
 
 #Image{
 	margin-top: 36px;
+}
+
+#NoImage{
+	font-size: 12pt;
 }
 }
