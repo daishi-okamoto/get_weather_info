@@ -1,80 +1,485 @@
+'use strict';
+
+const START_YEAR             = 2021;
+const JOB_SCHEDULED_TIME_MIN = 40;
+const GPV_UPDATE_MIN         = 30;
+
+const GPV_URL = 'http://weather-gpv.info/';
+const GPV_IMAGE_WIDTH  = 800;
+const GPV_IMAGE_HEIGHT = 600;
+
+const MONTH_NAME_ARRAY = new Array('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC');
+
+const QUERY_KEY_IMG_TYPE = 'img';
+const QUERY_KEY_AREA     = 'area';
+const QUERY_KEY_TYPE     = 'type';
+const QUERY_KEY_YEAR     = 'y';
+const QUERY_KEY_MONTH    = 'm';
+const QUERY_KEY_DAY      = 'd';
+const QUERY_KEY_HOUR     = 'h';
+
+const QUERY_VAL_IMG_TYPE = {
+	GPV : 0,
+	SAT : 1
+};
+
+const AUTO_PLAY_STATUS = {
+	STOP : 0,
+	PLAY : 1,
+	REVERSE : 2
+};
+
+const ANIMATION_DURATION_MANUAL = 100;
+const ANIMATION_DURATION_AUTO   = 200;
+
+const TOUCH_MOVE_THRESHOLD       = 25;
+const WHEEL_ACTION_DECIMATE_TIME = 75;
+
+const KEY_CODE_LEFT  = 37;
+const KEY_CODE_RIGHT = 39;
+
+const ELEM_NAME_INPUT_AREA_GPV  = 'input[name=area_gpv]';
+const ELEM_NAME_INPUT_AREA_SAT  = 'input[name=area_sat]';
+const ELEM_NAME_INPUT_TYPE      = 'input[name=type]';
+const ELEM_NAME_SELECT_YEAR     = 'select[name=year]';
+const ELEM_NAME_SELECT_MONTH    = 'select[name=month]';
+const ELEM_NAME_SELECT_DAY      = 'select[name=day]';
+const ELEM_NAME_SELECT_HOUR     = 'select[name=hour]';
+const ELEM_NAME_INPUT_AUTO_PLAY = 'input[name=autoplay]';
+const ELEM_NAME_SELECT_SPEED    = 'select[name=speed]';
+const ELEM_NAME_OPTION          = '.Option';
+const ELEM_NAME_TYPE            = '#Type';
+const ELEM_NAME_LINK_GPV        = '#GpvLink';
+const ELEM_NAME_LINK_SAT        = '#SatelliteLink';
+const ELEM_NAME_AREA_GPV        = '#GpvArea';
+const ELEM_NAME_AREA_SAT        = '#SatelliteArea';
+const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
+const ELEM_NAME_NEXT_BUTTON     = '#NextButton';
+const ELEM_NAME_RELOAD_BUTTON   = '#ReloadButton';
+const ELEM_NAME_IMAGE           = '#Image';
+const ELEM_NAME_GPV_IMAGE       = '#GpvImage';
+const ELEM_NAME_GPV_FRAME       = '#GpvFrame';
+const ELEM_NAME_TOUCH_AREA      = '#TouchArea';
+const CLASS_NAME_PLAY           = 'Play';
+const CLASS_NAME_PAUSE          = 'Pause';
+
+var queryValImageType = null;
+
+var autoPlayTimer = null;
+var autoPlayStatus = AUTO_PLAY_STATUS.STOP;
+
+var touchStartX = null;
+var touchStartY = null;
+var touchPrevX = null;
+var touchPrevY = null;
+var isTouching = false;
+var isTouchMoved = false;
+
+var wheelLastActTime = new Date();
+
+//
+// functions
+//
+function prevHour() {
+	if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
+		return;
+	}
+
+	var currentElement = $(ELEM_NAME_SELECT_HOUR + ' > option:selected');
+	var newElement = currentElement.prev('option');
+	if (newElement.length === 0) {
+		if (prevDay()) {
+			newElement = $(ELEM_NAME_SELECT_HOUR + ' > option').last();
+		} else {
+			return;
+		}
+	}
+	$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
+	resetGpvImage();
+	resetUrl();
+}
+
+function nextHour() {
+	if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
+		return;
+	}
+
+	var currentElement = $(ELEM_NAME_SELECT_HOUR + ' > option:selected');
+	var newElement = currentElement.next('option');
+	if (newElement.length === 0) {
+		if (nextDay()) {
+			newElement = $(ELEM_NAME_SELECT_HOUR + ' > option').first();
+		} else {
+			return;
+		}
+	}
+	$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
+	resetGpvImage();
+	resetUrl();
+}
+
+function prevDay() {
+	var currentElement = $(ELEM_NAME_SELECT_DAY + ' > option:selected');
+	var newElement = currentElement.prev('option');
+	if (newElement.length === 0) {
+		if (prevMonth()) {
+			newElement = $(ELEM_NAME_SELECT_DAY + ' > option').last();
+		} else {
+			return false;
+		}
+	}
+	$(ELEM_NAME_SELECT_DAY).val(newElement.val());
+	return true;
+}
+
+function nextDay() {
+	var currentElement = $(ELEM_NAME_SELECT_DAY + ' > option:selected');
+	var newElement = currentElement.next('option');
+	if (newElement.length === 0) {
+		if (nextMonth()) {
+			newElement = $(ELEM_NAME_SELECT_DAY + ' > option').first();
+		} else {
+			return false;
+		}
+	}
+	$(ELEM_NAME_SELECT_DAY).val(newElement.val());
+	return true;
+}
+
+function prevMonth() {
+	var currentElement = $(ELEM_NAME_SELECT_MONTH + ' > option:selected');
+	var newElement = currentElement.prev('option');
+	if (newElement.length === 0) {
+		if (prevYear()) {
+			newElement = $(ELEM_NAME_SELECT_MONTH + ' > option').last();
+		} else {
+			return false;
+		}
+	}
+	$(ELEM_NAME_SELECT_MONTH).val(newElement.val());
+	const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
+	initDayOptions(year, newElement.val());
+	return true;
+}
+
+function nextMonth() {
+	var currentElement = $(ELEM_NAME_SELECT_MONTH + ' > option:selected');
+	var newElement = currentElement.next('option');
+	if (newElement.length === 0) {
+		if (nextYear()) {
+			newElement = $(ELEM_NAME_SELECT_MONTH + ' > option').first();
+		} else {
+			return false;
+		}
+	}
+	$(ELEM_NAME_SELECT_MONTH).val(newElement.val());
+	const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
+	initDayOptions(year, newElement.val());
+	return true;
+}
+
+function prevYear() {
+	var currentElement = $(ELEM_NAME_SELECT_YEAR + ' > option:selected');
+	var newElement = currentElement.prev('option');
+	if (newElement.length === 0) {
+		return false;
+	}
+	$(ELEM_NAME_SELECT_YEAR).val(newElement.val());
+	return true;
+}
+
+function nextYear() {
+	var currentElement = $(ELEM_NAME_SELECT_YEAR + ' > option:selected');
+	var newElement = currentElement.next('option');
+	if (newElement.length === 0) {
+		return false;
+	}
+	$(ELEM_NAME_SELECT_YEAR).val(newElement.val());
+	return true;
+}
+
+function initElementSize() {
+	const width = window.innerWidth;
+	const height = Math.round((width / GPV_IMAGE_WIDTH) * GPV_IMAGE_HEIGHT);
+	//console.log('width=' + width + ', height=' + height);
+
+	if (width >= GPV_IMAGE_WIDTH) {
+		return;
+	}
+
+	$('body').css('width', width + 'px');
+	$(ELEM_NAME_OPTION).css('width', width + 'px');
+	$(ELEM_NAME_IMAGE).css({width: width + 'px', height: height + 'px'});
+	$(ELEM_NAME_GPV_IMAGE).css({width: width + 'px', height: height + 'px'});
+	$(ELEM_NAME_GPV_IMAGE + ' div').css({width: width + 'px', height: height + 'px'});
+	$(ELEM_NAME_TOUCH_AREA).css({width: width + 'px', height: height + 'px'});
+}
+
+function initYearOptions() {
+	const thisYear = (new Date()).getFullYear();
+	for (var i = START_YEAR; i <= thisYear; i++) {
+		$(ELEM_NAME_SELECT_YEAR).append('<option value="' + i + '">' + i + '</option>');
+	}
+}
+
+function initDayOptions(year, month) {
+	var lastDay = new Array('', 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
+	if ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) {
+		lastDay[2] = 29;
+	}
+
+	var prevDay = null;
+	if ($(ELEM_NAME_SELECT_DAY + ' > option').length > 0) {
+		prevDay = $(ELEM_NAME_SELECT_DAY + ' > option:selected').val();
+		$(ELEM_NAME_SELECT_DAY).empty();
+	}
+
+	for (var i = 1; i <= lastDay[month]; i++) {
+		$(ELEM_NAME_SELECT_DAY).append('<option value="' + i + '">' + i + '</option>');
+	}
+
+	if (prevDay !== null) {
+		if (prevDay > lastDay[month]) {
+			prevDay = lastDay[month];
+		}
+		$(ELEM_NAME_SELECT_DAY).val(prevDay);
+	}
+}
+
+function initDateSelect(year, month, day, hour) {
+	//console.log('year=' + year + ', month=' + month + ', day=' + day + ', hour=' + hour);
+	var now = new Date();
+	/*
+	var hour_delta = now.getHours() % 3 + 1;
+	if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
+		hour_delta = 0;
+	}
+	now.setHours(now.getHours() - hour_delta);
+	*/
+
+	if (!Number.isInteger(year)) {
+		year = now.getFullYear();
+	}
+	if (!Number.isInteger(month)) {
+		month = now.getMonth() + 1;
+	}
+	if (!Number.isInteger(day)) {
+		day = now.getDate();
+	}
+	if (!Number.isInteger(hour)) {
+		hour = now.getHours();
+	}
+
+	$(ELEM_NAME_SELECT_YEAR).val(year);
+	$(ELEM_NAME_SELECT_MONTH).val(month);
+	$(ELEM_NAME_SELECT_DAY).val(day);
+	$(ELEM_NAME_SELECT_HOUR).val(hour);
+}
+
+function resetGpvImage() {
+	if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
+		return;
+	}
+
+	const areaElem = (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
+	const area = $(areaElem + ':checked').val();
+	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+	const year = $(ELEM_NAME_SELECT_YEAR).val();
+	const month = $(ELEM_NAME_SELECT_MONTH).val();
+	const day = $(ELEM_NAME_SELECT_DAY).val();
+	const hour = $(ELEM_NAME_SELECT_HOUR).val();
+	const delay = autoPlayStatus === AUTO_PLAY_STATUS.STOP ? ANIMATION_DURATION_MANUAL : ANIMATION_DURATION_AUTO;
+
+	var href = './index.html?';
+	var path = '';
+	if (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) {
+		path = 'images/satellite/' + area + '/' + year + '/' + getDoubleDigits(month) + '/' + getDoubleDigits(day) + '/'
+			+ 'satellite_' + area + '_' + year + getDoubleDigits(month) + getDoubleDigits(day) + '_' + getDoubleDigits(hour) + '_30_00.jpg';
+		href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
+			+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+			+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+		$(ELEM_NAME_LINK_GPV).attr('href', href);
+	} else {
+		path = getGpvImagePath();
+		href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.SAT + '&'
+			+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+			+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+		$(ELEM_NAME_LINK_SAT).attr('href', href);
+	}
+	//console.log(path);
+
+	$(ELEM_NAME_GPV_IMAGE).append('<div></div>');
+	$(ELEM_NAME_GPV_IMAGE + '> div').last().css('animation-duration', delay + 'ms');
+	$(ELEM_NAME_GPV_IMAGE + '> div').last().css('background-image', 'url(' + path + ')');
+	$(ELEM_NAME_GPV_IMAGE + '> div').first().delay(delay).queue(function() {
+		$(this).remove();
+	})
+}
+
+function getGpvImagePath() {
+	const now = new Date();
+	const area = $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val();
+	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+	var year = $(ELEM_NAME_SELECT_YEAR).val();
+	var month = $(ELEM_NAME_SELECT_MONTH).val();
+	var day = $(ELEM_NAME_SELECT_DAY).val();
+	var hour = $(ELEM_NAME_SELECT_HOUR).val();
+
+	var selectedDate = new Date(year, (month - 1), day, hour, now.getMinutes(), now.getSeconds(), now.getMilliseconds());
+	var hour_delta = Math.round(((selectedDate.getTime() - now.getTime()) / (1000 * 3600)));
+
+	var path = '';
+	if (hour_delta > -3) {
+		var index = now.getHours() % 3;
+		if (index === 2 && now.getMinutes() >= GPV_UPDATE_MIN) {
+			index = -1;
+		}
+		index += hour_delta + 4;
+
+		now.setHours(now.getHours() + hour_delta);
+		year = now.getUTCFullYear();
+		month = MONTH_NAME_ARRAY[now.getUTCMonth()];
+		day = getDoubleDigits(now.getUTCDate());
+		hour = getDoubleDigits(now.getUTCHours());
+
+		path = GPV_URL + 'msm/msm_' + type + '_' + area + '_'
+			+ index + '.' + hour + 'Z' + day + month + year + '.png';
+	} else {
+		month = getDoubleDigits(month);
+		day = getDoubleDigits(day);
+		hour = getDoubleDigits(hour);
+
+		path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
+			+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
+	}
+
+	//console.log(path);
+	return path;
+}
+
+function resetGpvFrame() {
+	if (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) {
+		return;
+	}
+
+	const areaElem = (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
+	const area = $(areaElem + ':checked').val();
+	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+
+	var now = new Date();
+	var hour_delta = now.getHours() % 3 + 3;
+	if (hour_delta === 5 && now.getMinutes() >= GPV_UPDATE_MIN) {
+		hour_delta = 2;
+	}
+	now.setHours(now.getHours() - hour_delta);
+	const year = now.getFullYear();
+	const month = getDoubleDigits(now.getMonth() + 1);
+	const day = getDoubleDigits(now.getDate());
+	const hour = getDoubleDigits(now.getHours());
+
+	const url = GPV_URL + 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.html';
+	//console.log(url);
+
+	$(ELEM_NAME_GPV_FRAME + ' > iframe').attr('src', url);
+}
+
+function autoPlay() {
+	const interval = $(ELEM_NAME_SELECT_SPEED + ' > option:selected').val();
+	autoPlayTimer = setTimeout(function() {
+		autoPlayStatus === AUTO_PLAY_STATUS.PLAY ? nextHour() : prevHour();
+		autoPlay();
+	}, interval);
+}
+
+function startAutoPlay(status) {
+	clearTimeout(autoPlayTimer);
+	autoPlay();
+	switch (status) {
+		case AUTO_PLAY_STATUS.PLAY:
+			autoPlayStatus = status;
+			$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PAUSE);
+			$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
+			$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PLAY);
+			$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PAUSE);
+			break;
+		case AUTO_PLAY_STATUS.REVERSE:
+			autoPlayStatus = status;
+			$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PLAY);
+			$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PAUSE);
+			$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
+			$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
+			break;
+		case AUTO_PLAY_STATUS.STOP:
+			console.warn('status=' + status);
+			stopAutoPlay();
+			break;
+		default:
+			break;
+	}
+}
+
+function stopAutoPlay() {
+	autoPlayStatus = AUTO_PLAY_STATUS.STOP;
+	clearTimeout(autoPlayTimer);
+	$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PAUSE);
+	$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
+	$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
+	$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
+}
+
+function getParameterByName(name, url = window.location.href) {
+	name = name.replace(/[\[\]]/g, '\\$&');
+	var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
+	var results = regex.exec(url);
+	if (!results) return null;
+	if (!results[2]) return '';
+	return decodeURIComponent(results[2].replace(/\+/g, ' '));
+}
+
+function resetUrl() {
+	const areaElem = (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
+	const area = $(areaElem + ':checked').val();
+	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+	const year = $(ELEM_NAME_SELECT_YEAR).val();
+	const month = $(ELEM_NAME_SELECT_MONTH).val();
+	const day = $(ELEM_NAME_SELECT_DAY).val();
+	const hour = $(ELEM_NAME_SELECT_HOUR).val();
+	const url = getFileName() + '?' + QUERY_KEY_IMG_TYPE + '=' + queryValImageType + '&'
+		+ QUERY_KEY_AREA + '=' + area + '&' + QUERY_KEY_TYPE + '=' + type + '&'
+		+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+		+ QUERY_KEY_DAY + '=' + day + '&' + QUERY_KEY_HOUR + '=' + hour;
+	history.replaceState('', '', url);
+}
+
+function getFileName(url = window.location.href) {
+	return url.split('/').pop().split('?').shift();
+}
+
+function getDoubleDigits(n) {
+	return (n.toString().length === 1) ? ('0' + n) : n.toString();
+}
+
+function shouldActWheel() {
+	if ((new Date()).getTime() - wheelLastActTime.getTime() > WHEEL_ACTION_DECIMATE_TIME) {
+		wheelLastActTime = new Date();
+		return true;
+	}
+	return false;
+}
+
+//
+// on document load
+//
 $(document).ready(function() {
-	'use strict';
-
-	const START_YEAR             = 2021;
-	const JOB_SCHEDULED_TIME_MIN = 40;
-	const GPV_UPDATE_MIN         = 30;
-
-	const GPV_URL = 'http://weather-gpv.info/';
-	const GPV_IMAGE_WIDTH  = 800;
-	const GPV_IMAGE_HEIGHT = 600;
-
-	const MONTH_NAME_ARRAY = new Array('JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC');
-
-	const QUERY_KEY_IMG_TYPE = 'img';
-	const QUERY_KEY_AREA     = 'area';
-	const QUERY_KEY_TYPE     = 'type';
-	const QUERY_KEY_YEAR     = 'y';
-	const QUERY_KEY_MONTH    = 'm';
-	const QUERY_KEY_DAY      = 'd';
-	const QUERY_KEY_HOUR     = 'h';
-	const QUERY_VAL_GPV      = 'gpv';
-	const QUERY_VAL_SAT      = 'sat';
-	const IMAGE_TYPE = getParameterByName(QUERY_KEY_IMG_TYPE);
-	//console.log('IMAGE_TYPE=' + IMAGE_TYPE);
-
-	const AUTO_PLAY_STATUS = {
-		STOP : 0,
-		PLAY : 1,
-		REVERSE : 2
-	};
-
-	const ANIMATION_DURATION_MANUAL = 100;
-	const ANIMATION_DURATION_AUTO   = 200;
-
-	const TOUCH_MOVE_THRESHOLD = 25;
-
-	const KEY_CODE_LEFT  = 37;
-	const KEY_CODE_RIGHT = 39;
-
-	const ELEM_NAME_INPUT_AREA_GPV  = 'input[name=area_gpv]';
-	const ELEM_NAME_INPUT_AREA_SAT  = 'input[name=area_sat]';
-	const ELEM_NAME_INPUT_TYPE      = 'input[name=type]';
-	const ELEM_NAME_SELECT_YEAR     = 'select[name=year]';
-	const ELEM_NAME_SELECT_MONTH    = 'select[name=month]';
-	const ELEM_NAME_SELECT_DAY      = 'select[name=day]';
-	const ELEM_NAME_SELECT_HOUR     = 'select[name=hour]';
-	const ELEM_NAME_INPUT_AUTO_PLAY = 'input[name=autoplay]';
-	const ELEM_NAME_SELECT_SPEED    = 'select[name=speed]';
-	const ELEM_NAME_OPTION          = '.Option';
-	const ELEM_NAME_TYPE            = '#Type';
-	const ELEM_NAME_LINK_GPV        = '#GpvLink';
-	const ELEM_NAME_LINK_SAT        = '#SatelliteLink';
-	const ELEM_NAME_AREA_GPV        = '#GpvArea';
-	const ELEM_NAME_AREA_SAT        = '#SatelliteArea';
-	const ELEM_NAME_PREV_BUTTON     = '#PrevButton';
-	const ELEM_NAME_NEXT_BUTTON     = '#NextButton';
-	const ELEM_NAME_RELOAD_BUTTON   = '#ReloadButton';
-	const ELEM_NAME_IMAGE           = '#Image';
-	const ELEM_NAME_GPV_IMAGE       = '#GpvImage';
-	const ELEM_NAME_GPV_FRAME       = '#GpvFrame';
-	const ELEM_NAME_TOUCH_AREA      = '#TouchArea';
-	const CLASS_NAME_PLAY           = 'Play';
-	const CLASS_NAME_PAUSE          = 'Pause';
-
-	var autoPlayTimer = null;
-	var autoPlayStatus = AUTO_PLAY_STATUS.STOP;
-
-	var touchStartX = null;
-	var touchStartY = null;
-	var touchPrevX = null;
-	var touchPrevY = null;
-	var isTouching = false;
-	var isTouchMoved = false;
 
 	//
 	// initialize
 	//
+	queryValImageType = parseInt(getParameterByName(QUERY_KEY_IMG_TYPE));
+	if (isNaN(queryValImageType) || !queryValImageType) {
+		queryValImageType = QUERY_VAL_IMG_TYPE.GPV;
+	}
+
 	initElementSize();
 	initYearOptions();
 	initDayOptions((new Date()).getFullYear(), (new Date()).getMonth() + 1);
@@ -86,7 +491,7 @@ $(document).ready(function() {
 	resetGpvImage();
 	//resetGpvFrame();
 	resetUrl();
-	if (IMAGE_TYPE === QUERY_VAL_SAT) {
+	if (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) {
 		$(ELEM_NAME_AREA_GPV).css('display', 'none');
 		$(ELEM_NAME_TYPE).css('display', 'none');
 		//$(ELEM_NAME_GPV_FRAME).css('display', 'none');
@@ -106,6 +511,58 @@ $(document).ready(function() {
 	}).mouseup(function(event) {
 		event.preventDefault();
 		release(event.clientX, event.clientY);
+	});
+
+	$(ELEM_NAME_TOUCH_AREA).bind('wheel', function(event) {
+		event.preventDefault();
+		if (event.originalEvent.deltaY < 0 && shouldActWheel()) {
+			prevHour();
+		} else if (event.originalEvent.deltaY > 0 && shouldActWheel()) {
+			nextHour();
+		}
+	});
+
+	$(ELEM_NAME_SELECT_HOUR).bind('wheel', function(event) {
+		event.preventDefault();
+		//console.log('deltaY=' + event.originalEvent.deltaY);
+		if (event.originalEvent.deltaY < 0 && shouldActWheel()) {
+			prevHour();
+		} else if (event.originalEvent.deltaY > 0 && shouldActWheel()) {
+			nextHour();
+		}
+	});
+
+	$(ELEM_NAME_SELECT_DAY).bind('wheel', function(event) {
+		event.preventDefault();
+		if (event.originalEvent.deltaY < 0 && shouldActWheel() && prevDay()) {
+			resetGpvImage();
+			resetUrl();
+		} else if (event.originalEvent.deltaY > 0 && shouldActWheel() && nextDay()) {
+			resetGpvImage();
+			resetUrl();
+		}
+	});
+
+	$(ELEM_NAME_SELECT_MONTH).bind('wheel', function(event) {
+		event.preventDefault();
+		if (event.originalEvent.deltaY < 0 && shouldActWheel() && prevMonth()) {
+			resetGpvImage();
+			resetUrl();
+		} else if (event.originalEvent.deltaY > 0 && shouldActWheel() && nextMonth()) {
+			resetGpvImage();
+			resetUrl();
+		}
+	});
+
+	$(ELEM_NAME_SELECT_YEAR).bind('wheel', function(event) {
+		event.preventDefault();
+		if (event.originalEvent.deltaY < 0 && shouldActWheel() && prevYear()) {
+			resetGpvImage();
+			resetUrl();
+		} else if (event.originalEvent.deltaY > 0 && shouldActWheel() && nextYear()) {
+			resetGpvImage();
+			resetUrl();
+		}
 	});
 
 	//
@@ -287,12 +744,12 @@ $(document).ready(function() {
 
 	$(ELEM_NAME_RELOAD_BUTTON).click(function() {
 		var href = './' + getFileName() + '?';
-		if (IMAGE_TYPE === QUERY_VAL_GPV) {
-			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_GPV + '&'
+		if (queryValImageType === QUERY_KEY_IMG_TYPE.GPV) {
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
 				+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val() + '&'
 				+ QUERY_KEY_TYPE + '=' + $(ELEM_NAME_INPUT_TYPE + ':checked').val();
 		} else {
-			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_SAT + '&'
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.SAT + '&'
 				+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_SAT + ':checked').val();
 		}
 		window.location.href = href;
@@ -319,387 +776,5 @@ $(document).ready(function() {
 			$(ELEM_NAME_INPUT_AUTO_PLAY).prop('checked', true);
 		}
 	});
-
-	//
-	// functions
-	//
-	function prevHour() {
-		if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
-			return;
-		}
-
-		var currentElement = $(ELEM_NAME_SELECT_HOUR + ' > option:selected');
-		var newElement = currentElement.prev('option');
-		if (newElement.length === 0) {
-			if (prevDay()) {
-				newElement = $(ELEM_NAME_SELECT_HOUR + ' > option').last();
-			} else {
-				return;
-			}
-		}
-		$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
-		resetGpvImage();
-		resetUrl();
-	}
-
-	function nextHour() {
-		if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
-			return;
-		}
-
-		var currentElement = $(ELEM_NAME_SELECT_HOUR + ' > option:selected');
-		var newElement = currentElement.next('option');
-		if (newElement.length === 0) {
-			if (nextDay()) {
-				newElement = $(ELEM_NAME_SELECT_HOUR + ' > option').first();
-			} else {
-				return;
-			}
-		}
-		$(ELEM_NAME_SELECT_HOUR).val(newElement.val());
-		resetGpvImage();
-		resetUrl();
-	}
-
-	function prevDay() {
-		var currentElement = $(ELEM_NAME_SELECT_DAY + ' > option:selected');
-		var newElement = currentElement.prev('option');
-		if (newElement.length === 0) {
-			if (prevMonth()) {
-				newElement = $(ELEM_NAME_SELECT_DAY + ' > option').last();
-			} else {
-				return false;
-			}
-		}
-		$(ELEM_NAME_SELECT_DAY).val(newElement.val());
-		return true;
-	}
-
-	function nextDay() {
-		var currentElement = $(ELEM_NAME_SELECT_DAY + ' > option:selected');
-		var newElement = currentElement.next('option');
-		if (newElement.length === 0) {
-			if (nextMonth()) {
-				newElement = $(ELEM_NAME_SELECT_DAY + ' > option').first();
-			} else {
-				return false;
-			}
-		}
-		$(ELEM_NAME_SELECT_DAY).val(newElement.val());
-		return true;
-	}
-
-	function prevMonth() {
-		var currentElement = $(ELEM_NAME_SELECT_MONTH + ' > option:selected');
-		var newElement = currentElement.prev('option');
-		if (newElement.length === 0) {
-			if (prevYear()) {
-				newElement = $(ELEM_NAME_SELECT_MONTH + ' > option').last();
-			} else {
-				return false;
-			}
-		}
-		$(ELEM_NAME_SELECT_MONTH).val(newElement.val());
-		const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
-		initDayOptions(year, newElement.val());
-		return true;
-	}
-
-	function nextMonth() {
-		var currentElement = $(ELEM_NAME_SELECT_MONTH + ' > option:selected');
-		var newElement = currentElement.next('option');
-		if (newElement.length === 0) {
-			if (nextYear()) {
-				newElement = $(ELEM_NAME_SELECT_MONTH + ' > option').first();
-			} else {
-				return false;
-			}
-		}
-		$(ELEM_NAME_SELECT_MONTH).val(newElement.val());
-		const year = $(ELEM_NAME_SELECT_YEAR + ' > option:selected').val();
-		initDayOptions(year, newElement.val());
-		return true;
-	}
-
-	function prevYear() {
-		var currentElement = $(ELEM_NAME_SELECT_YEAR + ' > option:selected');
-		var newElement = currentElement.prev('option');
-		if (newElement.length === 0) {
-			return false;
-		}
-		$(ELEM_NAME_SELECT_YEAR).val(newElement.val());
-		return true;
-	}
-
-	function nextYear() {
-		var currentElement = $(ELEM_NAME_SELECT_YEAR + ' > option:selected');
-		var newElement = currentElement.next('option');
-		if (newElement.length === 0) {
-			return false;
-		}
-		$(ELEM_NAME_SELECT_YEAR).val(newElement.val());
-		return true;
-	}
-
-	function initElementSize() {
-		const width = window.innerWidth;
-		const height = Math.round((width / GPV_IMAGE_WIDTH) * GPV_IMAGE_HEIGHT);
-		//console.log('width=' + width + ', height=' + height);
-
-		if (width >= GPV_IMAGE_WIDTH) {
-			return;
-		}
-
-		$('#Container').css('width', width + 'px');
-		$(ELEM_NAME_OPTION).css('width', width + 'px');
-		$(ELEM_NAME_IMAGE).css({width: width + 'px', height: height + 'px'});
-		$(ELEM_NAME_GPV_IMAGE).css({width: width + 'px', height: height + 'px'});
-		$(ELEM_NAME_GPV_IMAGE + ' div').css({width: width + 'px', height: height + 'px'});
-		$(ELEM_NAME_TOUCH_AREA).css({width: width + 'px', height: height + 'px'});
-	}
-
-	function initYearOptions() {
-		const thisYear = (new Date()).getFullYear();
-		for (var i = START_YEAR; i <= thisYear; i++) {
-			$(ELEM_NAME_SELECT_YEAR).append('<option value="' + i + '">' + i + '</option>');
-		}
-	}
-
-	function initDayOptions(year, month) {
-		var lastDay = new Array('', 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31);
-		if ((year % 4 === 0 && year % 100 !== 0) || year % 400 === 0) {
-			lastDay[2] = 29;
-		}
-
-		var prevDay = null;
-		if ($(ELEM_NAME_SELECT_DAY + ' > option').length > 0) {
-			prevDay = $(ELEM_NAME_SELECT_DAY + ' > option:selected').val();
-			$(ELEM_NAME_SELECT_DAY).empty();
-		}
-
-		for (var i = 1; i <= lastDay[month]; i++) {
-			$(ELEM_NAME_SELECT_DAY).append('<option value="' + i + '">' + i + '</option>');
-		}
-
-		if (prevDay !== null) {
-			if (prevDay > lastDay[month]) {
-				prevDay = lastDay[month];
-			}
-			$(ELEM_NAME_SELECT_DAY).val(prevDay);
-		}
-	}
-
-	function initDateSelect(year, month, day, hour) {
-		//console.log('year=' + year + ', month=' + month + ', day=' + day + ', hour=' + hour);
-		var now = new Date();
-		/*
-		var hour_delta = now.getHours() % 3 + 1;
-		if (hour_delta === 3 && now.getMinutes() >= JOB_SCHEDULED_TIME_MIN) {
-			hour_delta = 0;
-		}
-		now.setHours(now.getHours() - hour_delta);
-		*/
-
-		if (!Number.isInteger(year)) {
-			year = now.getFullYear();
-		}
-		if (!Number.isInteger(month)) {
-			month = now.getMonth() + 1;
-		}
-		if (!Number.isInteger(day)) {
-			day = now.getDate();
-		}
-		if (!Number.isInteger(hour)) {
-			hour = now.getHours();
-		}
-
-		$(ELEM_NAME_SELECT_YEAR).val(year);
-		$(ELEM_NAME_SELECT_MONTH).val(month);
-		$(ELEM_NAME_SELECT_DAY).val(day);
-		$(ELEM_NAME_SELECT_HOUR).val(hour);
-	}
-
-	function resetGpvImage() {
-		if ($(ELEM_NAME_GPV_IMAGE + '> div').length > 1) {
-			return;
-		}
-
-		const areaElem = (IMAGE_TYPE === QUERY_VAL_SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
-		const area = $(areaElem + ':checked').val();
-		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
-		const year = $(ELEM_NAME_SELECT_YEAR).val();
-		const month = $(ELEM_NAME_SELECT_MONTH).val();
-		const day = $(ELEM_NAME_SELECT_DAY).val();
-		const hour = $(ELEM_NAME_SELECT_HOUR).val();
-		const delay = autoPlayStatus === AUTO_PLAY_STATUS.STOP ? ANIMATION_DURATION_MANUAL : ANIMATION_DURATION_AUTO;
-
-		var href = './index.html?';
-		var path = '';
-		if (IMAGE_TYPE === QUERY_VAL_SAT) {
-			path = 'images/satellite/' + area + '/' + year + '/' + getDoubleDigits(month) + '/' + getDoubleDigits(day) + '/'
-				+ 'satellite_' + area + '_' + year + getDoubleDigits(month) + getDoubleDigits(day) + '_' + getDoubleDigits(hour) + '_30_00.jpg';
-			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_GPV + '&'
-				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
-				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
-			$(ELEM_NAME_LINK_GPV).attr('href', href);
-		} else {
-			path = getGpvImagePath();
-			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_SAT + '&'
-				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
-				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
-			$(ELEM_NAME_LINK_SAT).attr('href', href);
-		}
-		//console.log(path);
-
-		$(ELEM_NAME_GPV_IMAGE).append('<div></div>');
-		$(ELEM_NAME_GPV_IMAGE + '> div').last().css('animation-duration', delay + 'ms');
-		$(ELEM_NAME_GPV_IMAGE + '> div').last().css('background-image', 'url(' + path + ')');
-		$(ELEM_NAME_GPV_IMAGE + '> div').first().delay(delay).queue(function() {
-			$(this).remove();
-		})
-	}
-
-	function getGpvImagePath() {
-		const now = new Date();
-		const area = $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val();
-		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
-		var year = $(ELEM_NAME_SELECT_YEAR).val();
-		var month = $(ELEM_NAME_SELECT_MONTH).val();
-		var day = $(ELEM_NAME_SELECT_DAY).val();
-		var hour = $(ELEM_NAME_SELECT_HOUR).val();
-
-		var selectedDate = new Date(year, (month - 1), day, hour, now.getMinutes(), now.getSeconds(), now.getMilliseconds());
-		var hour_delta = Math.round(((selectedDate.getTime() - now.getTime()) / (1000 * 3600)));
-
-		var path = '';
-		if (hour_delta > -3) {
-			var index = now.getHours() % 3;
-			if (index === 2 && now.getMinutes() >= GPV_UPDATE_MIN) {
-				index = -1;
-			}
-			index += hour_delta + 4;
-
-			now.setHours(now.getHours() + hour_delta);
-			year = now.getUTCFullYear();
-			month = MONTH_NAME_ARRAY[now.getUTCMonth()];
-			day = getDoubleDigits(now.getUTCDate());
-			hour = getDoubleDigits(now.getUTCHours());
-
-			path = GPV_URL + 'msm/msm_' + type + '_' + area + '_'
-				+ index + '.' + hour + 'Z' + day + month + year + '.png';
-		} else {
-			month = getDoubleDigits(month);
-			day = getDoubleDigits(day);
-			hour = getDoubleDigits(hour);
-
-			path = 'images/' + type + '/' + area + '/' + year + '/' + month + '/' + day + '/'
-				+ 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.png';
-		}
-
-		//console.log(path);
-		return path;
-	}
-
-	function resetGpvFrame() {
-		if (IMAGE_TYPE === QUERY_VAL_SAT) {
-			return;
-		}
-
-		const areaElem = (IMAGE_TYPE === QUERY_VAL_SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
-		const area = $(areaElem + ':checked').val();
-		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
-
-		var now = new Date();
-		var hour_delta = now.getHours() % 3 + 3;
-		if (hour_delta === 5 && now.getMinutes() >= GPV_UPDATE_MIN) {
-			hour_delta = 2;
-		}
-		now.setHours(now.getHours() - hour_delta);
-		const year = now.getFullYear();
-		const month = getDoubleDigits(now.getMonth() + 1);
-		const day = getDoubleDigits(now.getDate());
-		const hour = getDoubleDigits(now.getHours());
-
-		const url = GPV_URL + 'msm_' + type + '_' + area + '_' + year + month + day + hour + '.html';
-		//console.log(url);
-
-		$(ELEM_NAME_GPV_FRAME + ' > iframe').attr('src', url);
-	}
-
-	function autoPlay() {
-		const interval = $(ELEM_NAME_SELECT_SPEED + ' > option:selected').val();
-		autoPlayTimer = setTimeout(function() {
-			autoPlayStatus === AUTO_PLAY_STATUS.PLAY ? nextHour() : prevHour();
-			autoPlay();
-		}, interval);
-	}
-
-	function startAutoPlay(status) {
-		clearTimeout(autoPlayTimer);
-		autoPlay();
-		switch (status) {
-			case AUTO_PLAY_STATUS.PLAY:
-				autoPlayStatus = status;
-				$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PAUSE);
-				$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
-				$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PLAY);
-				$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PAUSE);
-				break;
-			case AUTO_PLAY_STATUS.REVERSE:
-				autoPlayStatus = status;
-				$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PLAY);
-				$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PAUSE);
-				$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
-				$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
-				break;
-			case AUTO_PLAY_STATUS.STOP:
-				console.warn('status=' + status);
-				stopAutoPlay();
-				break;
-			default:
-				break;
-		}
-	}
-
-	function stopAutoPlay() {
-		autoPlayStatus = AUTO_PLAY_STATUS.STOP;
-		clearTimeout(autoPlayTimer);
-		$(ELEM_NAME_PREV_BUTTON).removeClass(CLASS_NAME_PAUSE);
-		$(ELEM_NAME_PREV_BUTTON).addClass(CLASS_NAME_PLAY);
-		$(ELEM_NAME_NEXT_BUTTON).removeClass(CLASS_NAME_PAUSE);
-		$(ELEM_NAME_NEXT_BUTTON).addClass(CLASS_NAME_PLAY);
-	}
-
-	function getParameterByName(name, url = window.location.href) {
-		name = name.replace(/[\[\]]/g, '\\$&');
-		var regex = new RegExp('[?&]' + name + '(=([^&#]*)|&|#|$)');
-		var results = regex.exec(url);
-		if (!results) return null;
-		if (!results[2]) return '';
-		return decodeURIComponent(results[2].replace(/\+/g, ' '));
-	}
-
-	function resetUrl() {
-		const areaElem = (IMAGE_TYPE === QUERY_VAL_SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
-		const area = $(areaElem + ':checked').val();
-		const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
-		const year = $(ELEM_NAME_SELECT_YEAR).val();
-		const month = $(ELEM_NAME_SELECT_MONTH).val();
-		const day = $(ELEM_NAME_SELECT_DAY).val();
-		const hour = $(ELEM_NAME_SELECT_HOUR).val();
-		const url = getFileName() + '?' + QUERY_KEY_IMG_TYPE + '=' + IMAGE_TYPE + '&'
-			+ QUERY_KEY_AREA + '=' + area + '&' + QUERY_KEY_TYPE + '=' + type + '&'
-			+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
-			+ QUERY_KEY_DAY + '=' + day + '&' + QUERY_KEY_HOUR + '=' + hour;
-		history.replaceState('', '', url);
-	}
-
-	function getFileName(url = window.location.href) {
-		return url.split('/').pop().split('?').shift();
-	}
-
-	function getDoubleDigits(n) {
-		return (n.toString().length === 1) ? ('0' + n) : n.toString();
-	}
 
 });
