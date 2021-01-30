@@ -20,7 +20,8 @@ const QUERY_KEY_HOUR     = 'h';
 
 const QUERY_VAL_IMG_TYPE = {
 	GPV : 0,
-	SAT : 1
+	SAT : 1,
+	WIN : 2
 };
 
 const AUTO_PLAY_STATUS = {
@@ -281,8 +282,18 @@ function resetGpvImage() {
 		return;
 	}
 
-	const areaElem = (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
-	const area = $(areaElem + ':checked').val();
+	var area = '';
+	switch (queryValImageType) {
+		case QUERY_VAL_IMG_TYPE.SAT:
+			area = $(ELEM_NAME_INPUT_AREA_SAT + ':checked').val();
+			break;
+		case QUERY_VAL_IMG_TYPE.GPV:
+		case QUERY_VAL_IMG_TYPE.WIN:
+		default:
+			area = $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val();
+			break;
+	}
+
 	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
 	const year = $(ELEM_NAME_SELECT_YEAR).val();
 	const month = $(ELEM_NAME_SELECT_MONTH).val();
@@ -292,19 +303,32 @@ function resetGpvImage() {
 
 	var href = './index.html?';
 	var path = '';
-	if (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) {
-		path = 'images/satellite/' + area + '/' + year + '/' + getDoubleDigits(month) + '/' + getDoubleDigits(day) + '/'
-			+ 'satellite_' + area + '_' + year + getDoubleDigits(month) + getDoubleDigits(day) + '_' + getDoubleDigits(hour) + '_30_00.jpg';
-		href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
-			+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
-			+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
-		$(ELEM_NAME_LINK_GPV).attr('href', href);
-	} else {
-		path = getGpvImagePath();
-		href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.SAT + '&'
-			+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
-			+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
-		$(ELEM_NAME_LINK_SAT).attr('href', href);
+
+	switch (queryValImageType) {
+		case QUERY_VAL_IMG_TYPE.SAT:
+			path = 'images/satellite/' + area + '/' + year + '/' + getDoubleDigits(month) + '/' + getDoubleDigits(day) + '/'
+				+ 'satellite_' + area + '_' + year + getDoubleDigits(month) + getDoubleDigits(day) + '_' + getDoubleDigits(hour) + '_30_00.jpg';
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
+				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+			$(ELEM_NAME_LINK_GPV).attr('href', href);
+			break;
+		case QUERY_VAL_IMG_TYPE.WIN:
+			path = 'images/windy/' + type + '/' + area + '/' + year + '/' + getDoubleDigits(month) + '/' + getDoubleDigits(day) + '/'
+				+ 'windy_' + type + '_' + area + '_' + year + getDoubleDigits(month) + getDoubleDigits(day) + getDoubleDigits(hour) + '.png';
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
+				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+			$(ELEM_NAME_LINK_GPV).attr('href', href);
+			break;
+		case QUERY_VAL_IMG_TYPE.GPV:
+		default:
+			path = getGpvImagePath();
+			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.WIN + '&'
+				+ QUERY_KEY_YEAR + '=' + year + '&' + QUERY_KEY_MONTH + '=' + month + '&'
+				+ QUERY_KEY_DAY + '=' + day + '&'+ QUERY_KEY_HOUR + '=' + hour;
+			$(ELEM_NAME_LINK_SAT).attr('href', href);
+			break;
 	}
 	//console.log(path);
 
@@ -358,12 +382,11 @@ function getGpvImagePath() {
 }
 
 function resetGpvFrame() {
-	if (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) {
+	if (queryValImageType !== QUERY_VAL_IMG_TYPE.GPV) {
 		return;
 	}
 
-	const areaElem = (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
-	const area = $(areaElem + ':checked').val();
+	const area = $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val();
 	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
 
 	var now = new Date();
@@ -437,8 +460,18 @@ function getParameterByName(name, url = window.location.href) {
 }
 
 function resetUrl() {
-	const areaElem = (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) ? ELEM_NAME_INPUT_AREA_SAT : ELEM_NAME_INPUT_AREA_GPV;
-	const area = $(areaElem + ':checked').val();
+	var area = '';
+	switch (queryValImageType) {
+		case QUERY_VAL_IMG_TYPE.SAT:
+			area = $(ELEM_NAME_INPUT_AREA_SAT + ':checked').val();
+			break;
+		case QUERY_VAL_IMG_TYPE.GPV:
+		case QUERY_VAL_IMG_TYPE.WIN:
+		default:
+			area = $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val();
+			break;
+	}
+
 	const type = $(ELEM_NAME_INPUT_TYPE + ':checked').val();
 	const year = $(ELEM_NAME_SELECT_YEAR).val();
 	const month = $(ELEM_NAME_SELECT_MONTH).val();
@@ -491,12 +524,16 @@ $(document).ready(function() {
 	resetGpvImage();
 	//resetGpvFrame();
 	resetUrl();
-	if (queryValImageType === QUERY_VAL_IMG_TYPE.SAT) {
-		$(ELEM_NAME_AREA_GPV).css('display', 'none');
-		$(ELEM_NAME_TYPE).css('display', 'none');
-		//$(ELEM_NAME_GPV_FRAME).css('display', 'none');
-	} else {
-		$(ELEM_NAME_AREA_SAT).css('display', 'none');
+	switch (queryValImageType) {
+		case QUERY_VAL_IMG_TYPE.SAT:
+			$(ELEM_NAME_AREA_GPV).css('display', 'none');
+			$(ELEM_NAME_TYPE).css('display', 'none');
+			break;
+		case QUERY_VAL_IMG_TYPE.GPV:
+		case QUERY_VAL_IMG_TYPE.WIN:
+		default:
+			$(ELEM_NAME_AREA_SAT).css('display', 'none');
+			break;
 	}
 
 	//
@@ -744,15 +781,26 @@ $(document).ready(function() {
 
 	$(ELEM_NAME_RELOAD_BUTTON).click(function() {
 		var href = './' + getFileName() + '?';
-		if (queryValImageType === QUERY_KEY_IMG_TYPE.GPV) {
-			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
-				+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val() + '&'
-				+ QUERY_KEY_TYPE + '=' + $(ELEM_NAME_INPUT_TYPE + ':checked').val();
-		} else {
-			href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.SAT + '&'
-				+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_SAT + ':checked').val();
+		switch (queryValImageType) {
+			case QUERY_VAL_IMG_TYPE.SAT:
+				href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.SAT + '&'
+					+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_SAT + ':checked').val();
+				window.location.href = href;
+				break;
+			case QUERY_VAL_IMG_TYPE.WIN:
+				href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.WIN + '&'
+					+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val() + '&'
+					+ QUERY_KEY_TYPE + '=' + $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+				window.location.href = href;
+				break;
+			case QUERY_VAL_IMG_TYPE.GPV:
+			default:
+				href += QUERY_KEY_IMG_TYPE + '=' + QUERY_VAL_IMG_TYPE.GPV + '&'
+					+ QUERY_KEY_AREA + '=' + $(ELEM_NAME_INPUT_AREA_GPV + ':checked').val() + '&'
+					+ QUERY_KEY_TYPE + '=' + $(ELEM_NAME_INPUT_TYPE + ':checked').val();
+				window.location.href = href;
+				break;
 		}
-		window.location.href = href;
 	});
 
 	$(ELEM_NAME_INPUT_AUTO_PLAY).change(function() {
